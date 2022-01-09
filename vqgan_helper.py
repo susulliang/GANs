@@ -20,7 +20,7 @@ from base64 import b64encode
 from pathlib import Path
 import sys, random
 import math
-import srscaler
+import srScaler
 import time
 import argparse
 import pickle
@@ -92,7 +92,7 @@ class vqgan:
     def __init__(self) -> None:
 
         self.cam_init()
-        self.res_scaler = srscaler.upscaler(cuda_on = True, factor = self.superres_factor)
+        self.res_scaler = srScaler.upscaler(cuda_on = True, factor = self.superres_factor)
         print(f" {bcolors.OKGREEN}[SRCNN] Image SuperRes device: {self.res_scaler.device}{bcolors.ENDC}")
         self.img_latest = 0
 

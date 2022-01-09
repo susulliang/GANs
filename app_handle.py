@@ -5,17 +5,16 @@ import traceback
 import numpy as np
 import torch.multiprocessing as mp
 
-import vqganCLIP
+import vqgan_helper
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import BlockingOSCUDPServer
 
 
-vqgan = vqganCLIP.vqgan
-bcolors = vqganCLIP.bcolors
+vqgan = vqgan_helper.vqgan
+bcolors = vqgan_helper.bcolors
 
 # == OSC handlers
 class osc_handle:
-
     def __init__(self, vq_ref, ip="192.168.0.138", port=5006) -> None:
         self.vq = vq_ref
         dispatcher = Dispatcher()
