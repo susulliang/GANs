@@ -1,18 +1,17 @@
 # import support functions and classes
-import vqganCLIP as gan
+
 import traceback
 
 import numpy as np
 import torch.multiprocessing as mp
 
-from PIL import Image, ImageFile
-from vqganCLIP import bcolors
+import vqganCLIP
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import BlockingOSCUDPServer
 
 
-
-
+vqgan = vqganCLIP.vqgan
+bcolors = vqganCLIP.bcolors
 
 # == OSC handlers
 class osc_handle:
@@ -65,7 +64,7 @@ class command_handle:
     def test_prompts(self):
         print(" [DEBUG] Using default test prompt sequence")
         prompts = "cube / spiral / ocean and beach / night and moon / dark sky and moon / green and orange colors / broccoli and vegetable"
-
+        prompts = "winter day with some trees / a snowy russian forest / forest with very beautiful landscape"
         prompts = prompts.split(" / ")
         for input_prompt in prompts:
             self.vq.generate("/imagenet", input_prompt)
@@ -87,10 +86,9 @@ class command_handle:
 
 
 def main():
-    vq = gan.vqgan()
+    vq = vqgan()
     handle = command_handle(vq)
-
-    handle.test_image_prompts()
+    handle.test_prompts()
 
     
     print(f' {bcolors.OKGREEN}[STATUS] Command completed, graceful byebye! {bcolors.ENDC} \n')

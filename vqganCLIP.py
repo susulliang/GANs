@@ -5,14 +5,12 @@
 # Imports
 import cv2
 from CLIP import clip
-from tqdm.notebook import tqdm
 from torchvision.transforms import functional as TF
 from torchvision import transforms
 from torch.nn import functional as F
 from torch import nn, optim
 from PIL import Image, ImageFile
 from omegaconf import OmegaConf
-from IPython import display
 import torch
 import numpy as np
 import kornia.augmentation as K
