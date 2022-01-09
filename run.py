@@ -1,19 +1,17 @@
 # import support functions and classes
-# The VQGAN+CLIP (z+quantize method) notebook this was based on is by Katherine Crowson (https://github.com/crowsonkb
+import vqganCLIP as gan
 import traceback
 
-
 import numpy as np
-import pyvirtualcam
-import torch
 import torch.multiprocessing as mp
 
 from PIL import Image, ImageFile
+from vqganCLIP import bcolors
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import BlockingOSCUDPServer
 
-import vqganCLIP as gan
-from vqganCLIP import bcolors
+
+
 
 
 # == OSC handlers
@@ -25,7 +23,7 @@ class osc_handle:
         dispatcher.set_default_handler(self.default_handler)
         server = BlockingOSCUDPServer((ip, port), dispatcher)
 
-        print('\n\n\n\n [OSC] Listening for OSC data on ' +
+        print('\n\n [OSC] Listening for OSC data on ' +
               ip + " at port " + str(port))
         server.serve_forever()  # Blocks forever
 
