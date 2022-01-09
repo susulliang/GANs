@@ -14,3 +14,10 @@ taming/
 taming-transformers/
 
 .vscode/
+backupsrcnn/
+pickles/pickle_models_cin_transformer
+pickles/pickle_models_coco
+pickles/pickle_models_drin_transformer
+pickles/pickle_models_faceshq
+pickles/pickle_models_vqgan_imagenet_f16_16384
+pickles/pickle_models_wikiart_16384
