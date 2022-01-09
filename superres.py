@@ -1,6 +1,5 @@
 # SRCNN Helper
 import sys
-import cv2
 import numpy as np
 import torch
 import torchvision.transforms as transforms
@@ -19,7 +18,7 @@ class upscaler:
 
     def res2x(self, img):
         start = time.time()
-
+        img = Image.fromarray(img).convert('YCbCr')
         img = img.resize((int(img.size[0]*2), int(img.size[1]*2)), Image.BICUBIC)  # first, we upscale the image via bicubic interpolation
         y, cb, cr = img.split()
 
@@ -38,6 +37,6 @@ class upscaler:
         out_img = Image.merge('YCbCr', [out_img_y, cb, cr]).convert('RGB')  # we merge the output of our network with the upscaled Cb and Cr from before
                                                            # before converting the result in RGB
         self.last_metric = round(time.time() - start, 3)
-        return np.asarray(out_img)
+        return out_img
 
 

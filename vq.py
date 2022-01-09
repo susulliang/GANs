@@ -252,15 +252,16 @@ class vqgan:
         
         self.img_latest = img
         self.frames.append(img)
-        img_file = Image.fromarray(img, 'RGB')
+        #img_file = Image.fromarray(img, 'RGB')
 
+        # =============================================
         # Upscale 2x SRCNN
-        
-        img_2x = self.res_scaler.res2x(img_file)
+        # =============================================
+
+        img_2x = np.uint8((self.res_scaler.res2x(img)))
         self.frames_2x.append(img_2x)
 
-
-        self.cam.send(np.uint8(img_2x))
+        self.cam.send(img_2x)
         self.cam.sleep_until_next_frame()
 
 
@@ -365,6 +366,8 @@ class vqgan:
 
     # Video
     def save_video(self, video_name="default_mov_out", ramdisk=False, interp_frames=9):
+        #print((self.frames[0]))
+        #print((self.frames_2x[0]))
         if video_name:
             video_name = video_name + "_" + \
                 str(random.randint(0, 10000)) + ".mp4"
@@ -475,11 +478,13 @@ class command_handle:
     def test_image_prompts(self, max_iter=20):
         target_image_file = "tdout_noise.jpg"
         print(f" [DEBUG] Using {target_image_file} as target image")
+
         for i in range(max_iter):
             vq.generate(
                 channel="/imagenet",
                 target_image=target_image_file,
                 ramdisk=True)
+                
         vq.save_video(
             video_name="vid_interp_out",
             ramdisk=True)
