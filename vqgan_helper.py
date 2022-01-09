@@ -58,7 +58,7 @@ class vqgan:
     stepsize = 0.2
     imagen_inicial = "tdout_cam.jpg"  # @param {type:"string"}
     init_weight = 0.05
-    max_iteraciones = 5  # @param {type:"number"}
+    max_iteraciones = 20  # @param {type:"number"}
 
     map_x = np.zeros((ancho, alto), dtype=np.float32)
     map_y = np.zeros((ancho, alto), dtype=np.float32)
