@@ -1,0 +1,84 @@
+model:
+  base_learning_rate: 4.5e-06
+  target: taming.models.cond_transformer.Net2NetTransformer
+  params:
+    first_stage_key: image
+    cond_stage_key: segmentation
+    transformer_config:
+      target: taming.modules.transformer.mingpt.GPT
+      params:
+        vocab_size: 8192
+        block_size: 512
+        n_layer: 32
+        n_head: 16
+        n_embd: 1280
+    first_stage_config:
+      target: taming.models.vqgan.VQModel
+      params:
+        embed_dim: 256
+        n_embed: 8192
+        ddconfig:
+          double_z: false
+          z_channels: 256
+          resolution: 256
+          in_channels: 3
+          out_ch: 3
+          ch: 128
+          ch_mult:
+          - 1
+          - 1
+          - 2
+          - 2
+          - 4
+          num_res_blocks: 2
+          attn_resolutions:
+          - 16
+          dropout: 0.0
+        lossconfig:
+          target: taming.modules.losses.DummyLoss
+    cond_stage_config:
+      target: taming.models.vqgan.VQModel
+      params:
+        embed_dim: 256
+        n_embed: 1024
+        image_key: segmentation
+        colorize_nlabels: 183
+        ddconfig:
+          double_z: false
+          z_channels: 256
+          resolution: 256
+          in_channels: 183
+          out_ch: 183
+          ch: 128
+          ch_mult:
+          - 1
+          - 1
+          - 2
+          - 2
+          - 4
+          num_res_blocks: 2
+          attn_resolutions:
+          - 16
+          dropout: 0.0
+        lossconfig:
+          target: taming.modules.losses.DummyLoss
+
+data:
+  target: main.DataModuleFromConfig
+  params:
+    batch_size: 8
+    num_workers: 16
+    train:
+      target: taming.data.coco.CocoImagesAndCaptionsTrain
+      params:
+        size: 296
+        crop_size: 256
+        onehot_segmentation: true
+        use_stuffthing: true
+    validation:
+      target: taming.data.coco.CocoImagesAndCaptionsValidation
+      params:
+        size: 256
+        crop_size: 256
+        onehot_segmentation: true
+        use_stuffthing: true

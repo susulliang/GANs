@@ -1,0 +1,5 @@
+lightning:
+  trainer:
+    distributed_backend: ddp
+    benchmark: true
+    gpus: 0,1

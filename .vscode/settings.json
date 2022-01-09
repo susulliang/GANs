@@ -1,7 +1,0 @@
-{
-    "python.analysis.extraPaths": [
-        "taming-transformers", 
-        "SRCNN",
-    ],
-    "C_Cpp.errorSquiggles": "Disabled"
-}

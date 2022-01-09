@@ -1,21 +1,31 @@
-# SRCNN Helper
+# SRCNN
+# Implementation of SRCNN in PyTorch.
 
-import sys
+# Reference
+# [Original paper on SRCNN by Dong et al. (*Image Super-Resolution Using Deep Convolutional Networks*)]
+# (http://personal.ie.cuhk.edu.hk/~ccloy/files/eccv_2014_deepresolution.pdf)
+
+
 import numpy as np
 import torch
 import torchvision.transforms as transforms
 import time
 from PIL import Image
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.nn.init as init
 
-sys.path.append('SRCNN')
-from model import SRCNN
+
+
 
 class upscaler:
     def __init__(self, cuda_on=False, factor=3) -> None:
         self.factor = factor
         self.last_metric = 0.0
+
         self.device = torch.device("cuda:0" if (
             torch.cuda.is_available() and cuda_on) else "cpu")
+
         self.torch_model = torch.load(
             f"SRCNN/model_{factor}x.pth").to(self.device)
 

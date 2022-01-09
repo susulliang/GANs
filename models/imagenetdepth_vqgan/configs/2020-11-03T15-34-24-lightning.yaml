@@ -1,0 +1,4 @@
+lightning:
+  trainer:
+    distributed_backend: ddp
+    gpus: 2,8

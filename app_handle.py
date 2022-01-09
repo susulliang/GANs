@@ -7,19 +7,22 @@ import torch.multiprocessing as mp
 
 import vqgan_helper
 from pythonosc.dispatcher import Dispatcher
-from pythonosc.osc_server import BlockingOSCUDPServer
+from pythonosc.osc_server import OSCUDPServer
 
+from srcnn_scaler import upscaler
+from srcnn_models.model import SRCNN
 
 vqgan = vqgan_helper.vqgan
 bcolors = vqgan_helper.bcolors
 
-# == OSC handlers
+
 class osc_handle:
+    # -> Command Line Handler 
     def __init__(self, vq_ref, ip="192.168.0.138", port=5006) -> None:
         self.vq = vq_ref
         dispatcher = Dispatcher()
         dispatcher.set_default_handler(self.default_handler)
-        server = BlockingOSCUDPServer((ip, port), dispatcher)
+        server = OSCUDPServer((ip, port), dispatcher)
 
         print('\n\n [OSC] Listening for OSC data on ' +
               ip + " at port " + str(port))
@@ -45,6 +48,7 @@ class osc_handle:
 
 
 class command_handle:
+    # -> Command Line Handler 
 
     def __init__(self, vq_ref) -> None:
         self.vq = vq_ref

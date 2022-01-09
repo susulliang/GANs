@@ -1,0 +1,12 @@
+lightning:
+  callbacks:
+    image_logger:
+      params:
+        batch_frequency: 500
+        increase_log_steps: true
+  trainer:
+    distributed_backend: ddp
+    accumulate_grad_batches: 2
+    gpus: 0,
+    precision: 16
+    resume_from_checkpoint: logs/2021-01-20T16-04-20_coco_net2nettransformer/checkpoints/last.ckpt
