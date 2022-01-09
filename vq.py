@@ -3,6 +3,7 @@
 import argparse
 import random
 import pickle
+import traceback
 
 import cv2
 import imageio
@@ -14,16 +15,22 @@ from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import BlockingOSCUDPServer
 
 import gan_base_module as gan
+import superres
 import time
 
 # TO-DO implement SRCNN
 
 
 class vqgan:
-    model_names = ["wikiart_16384"]
-    load_from_pickle = True
+    model_names = [
+        "wikiart_16384"
+        ]
 
-    model_names_full = ["vqgan_imagenet_f16_16384",
+    load_from_pickle = True
+    current_model_index = 0
+
+    model_names_full = ["faceshq",
+                        "vqgan_imagenet_f16_16384",
                         "wikiart_16384",
                         "coco",
                         "drin_transformer",
@@ -35,11 +42,12 @@ class vqgan:
     ancho = 256
     alto = 256
     video_fps = 60
+    superres_factor = 2
 
     stepsize = 0.2
-    imagen_inicial = "dezzy.jpg"  # @param {type:"string"}
+    imagen_inicial = "tdout_cam.jpg"  # @param {type:"string"}
     init_weight = 0.05
-    max_iteraciones = 10  # @param {type:"number"}
+    max_iteraciones = 5  # @param {type:"number"}
 
     map_x = np.zeros((ancho, alto), dtype=np.float32)
     map_y = np.zeros((ancho, alto), dtype=np.float32)
@@ -64,13 +72,14 @@ class vqgan:
              "grass", "flower", "plant", "shrub", "bloom", "screwdriver", "spanner", "figurine", "statue", "graveyard", "hotel", "bus", "train", "car", "lamp", "computer", "monitor"]
 
     frames = []
+    frames_2x = []
     first_run = True
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     def __init__(self) -> None:
 
         self.cam_init()
-
+        self.res_scaler = superres.upscaler(cuda_on = False)
         self.img_latest = 0
 
         if self.seed == -1:
@@ -128,15 +137,17 @@ class vqgan:
 
         # Load pickle models
         if self.load_from_pickle:
-            with open("pickle_models", "rb") as f:
+            print(f" {bcolors.OKBLUE}[MODELS] Loading from local pickle... {bcolors.ENDC}")
+            with open("pickle_models_1", "rb") as f:
                 self.models = pickle.load(f)
         else:
+            print(f" {bcolors.OKBLUE}[MODELS] Loading from models folder... {bcolors.ENDC}")
             self.models = [gan.load_vqgan_model(
                 f"models/{name}.yaml", f"models/{name}.ckpt").to(self.device) for name in self.model_names]
 
-            with open("pickle_models", "wb") as f:
+            with open(f"pickle_models_{len(self.models)}", "wb") as f:
                 pickle.dump(self.models, f)
-
+        print(f" {bcolors.OKBLUE}[MODELS] Successfully loaded {len(self.models)} models! {bcolors.ENDC}")
 
 
 
@@ -191,12 +202,13 @@ class vqgan:
         #self.generate("/imagenet", args.prompts[0])
 
         print(f' {bcolors.OKGREEN}[STATUS] Init complete. {bcolors.ENDC} \n\n')
+        print(f' {bcolors.OKBLUE}[MODELS] Current model:  {self.model_names[self.current_model_index]} ')
 
     def switch_model(self, model_index=0):
-
+        self.current_model_index = model_index
         if self.model != self.models[model_index]:
             self.model = self.models[model_index]
-            print(f' [MODEL] switched to {self.model_names[model_index]}')
+            print(f' {bcolors.OKBLUE}[MODELS] switched to {self.model_names[model_index]}{bcolors.ENDC}')
 
         #model_index = random.randint(0,len(self.models)-1)
             
@@ -204,7 +216,7 @@ class vqgan:
 
     def cam_init(self):
         self.cam = pyvirtualcam.Camera(
-            width=self.ancho, height=self.alto, fps=30)
+            width=self.ancho * self.superres_factor, height=self.alto * self.superres_factor, fps=30)
         print(
             f' {bcolors.OKBLUE}[DEVICE] Using virtual Camera: {self.cam.device} {bcolors.ENDC}')
 
@@ -234,19 +246,23 @@ class vqgan:
         for prompt in self.pMs:
             result.append(prompt(iii))
             
-
         img = np.array(out.mul(255).clamp(0, 255)[0].cpu(
         ).detach().numpy().astype(np.uint8))[:, :, :]
         img = np.transpose(img, (1, 2, 0))
         
         self.img_latest = img
         self.frames.append(img)
-
-        #filename = f"steps_{self.i:04}.png"
         img_file = Image.fromarray(img, 'RGB')
-        # img_file.save("lastest.png")
-        self.cam.send(np.uint8(img_file))
+
+        # Upscale 2x SRCNN
+        
+        img_2x = self.res_scaler.res2x(img_file)
+        self.frames_2x.append(img_2x)
+
+
+        self.cam.send(np.uint8(img_2x))
         self.cam.sleep_until_next_frame()
+
 
         return result
 
@@ -266,6 +282,7 @@ class vqgan:
 
 
     def refresh_z(self):
+
         self.pMs = []
         self.args.prompts = []
         
@@ -343,35 +360,48 @@ class vqgan:
 
         time_measure = round((time.time()-start), 2)
         fps = round((1 / time_measure * self.max_iteraciones), 2)
-        print(f" \n [METRIC] Execution time {time_measure} s, fps {fps}, init_weight {self.args.init_weight}, step_size {self.args.step_size}", end="\r")
+        print(f" \n {bcolors.OKGREEN}[METRIC] Execution time {time_measure} s, fps {fps}, upres_time {self.res_scaler.last_metric}s {bcolors.ENDC}", end="\r")
+
 
     # Video
-
     def save_video(self, video_name="default_mov_out", ramdisk=False, interp_frames=9):
         if video_name:
             video_name = video_name + "_" + \
                 str(random.randint(0, 10000)) + ".mp4"
             if ramdisk:
                 video_name = "R:/" + video_name
-            writer = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(
-                'm', 'p', '4', 'v'), self.video_fps, (self.alto, self.ancho))
+
+            writer = cv2.VideoWriter(
+                video_name, 
+                cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 
+                self.video_fps, 
+                (self.alto * self.superres_factor, self.ancho * self.superres_factor))
+            
+            f_counter = 0
 
             # add interpolation to smooth out video
-            for frame_index in range(len(self.frames)-1):
-                writer.write(self.frames[frame_index])
-                interp_frame = self.frames[frame_index].copy()
+            for frame_index in range(len(self.frames_2x)-1):
+                writer.write(self.frames_2x[frame_index])
+                self.cam.send(np.uint8(self.frames_2x[frame_index]))
+                self.cam.sleep_until_next_frame()
+
+                f_counter += 1
+                interp_frame = self.frames_2x[frame_index].copy()
                 interp_step = 1 / (interp_frames + 1)
                 for interp_index in range(interp_frames):
                     weight = interp_step * (interp_index + 1)
                     cv2.addWeighted(
-                        self.frames[frame_index], 1 - weight,
-                        self.frames[frame_index + 1], weight, 0.0,
+                        self.frames_2x[frame_index], 1 - weight,
+                        self.frames_2x[frame_index + 1], weight, 0.0,
                         dst=interp_frame)
                     writer.write(interp_frame)
+                    self.cam.send(np.uint8(interp_frame))
+                    self.cam.sleep_until_next_frame()
+                    f_counter += 1
 
             writer.release()
             print(
-                f"\n {bcolors.OKCYAN}[VIDEO] saved to {video_name}{bcolors.ENDC}")
+                f"\n {bcolors.OKCYAN}[VIDEO] {f_counter} frames saved to {video_name}{bcolors.ENDC}")
 
 
 class bcolors:
@@ -442,15 +472,16 @@ class command_handle:
         for input_prompt in prompts:
             vq.generate("/imagenet", input_prompt)
 
-    def test_image_prompts(self, max_iter=5):
-        print(" [DEBUG] Using tdout.jpg as target image")
+    def test_image_prompts(self, max_iter=20):
+        target_image_file = "tdout_noise.jpg"
+        print(f" [DEBUG] Using {target_image_file} as target image")
         for i in range(max_iter):
             vq.generate(
                 channel="/imagenet",
-                target_image="tdout_noise.jpg",
+                target_image=target_image_file,
                 ramdisk=True)
         vq.save_video(
-            video_name="tdcam_out",
+            video_name="vid_interp_out",
             ramdisk=True)
 
 
@@ -458,7 +489,12 @@ def main():
     # LOCAL COMMAND MODE
     global vq
     handle = command_handle()
-    handle.test_image_prompts()
+    try:
+        handle.test_image_prompts()
+    except Exception:
+        traceback.print_exc()
+    
+    print(f' {bcolors.OKGREEN}[STATUS] Command completed, graceful byebye! {bcolors.ENDC} \n')
 
     # OSC MODE
     #handle = osc_handle()
