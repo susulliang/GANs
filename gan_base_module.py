@@ -138,6 +138,7 @@ class Prompt(nn.Module):
 def parse_prompt(prompt):
     vals = prompt.rsplit(':', 2)
     vals = vals + ['', '1', '-inf'][len(vals):]
+    #print(f"\n[parse_prompt()] p {vals[0]} w {round(float(vals[1]), 2)} s {round(float(vals[2]), 2)}")
     return vals[0], float(vals[1]), float(vals[2])
 
 

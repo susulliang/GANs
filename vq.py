@@ -2,6 +2,7 @@
 # The VQGAN+CLIP (z+quantize method) notebook this was based on is by Katherine Crowson (https://github.com/crowsonkb
 import argparse
 import random
+import pickle
 
 import cv2
 import imageio
@@ -12,43 +13,43 @@ from PIL import Image, ImageFile
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import BlockingOSCUDPServer
 
-import gan_base_module
+import gan_base_module as gan
 import time
 
-## TO-DO implement SRCNN
+# TO-DO implement SRCNN
+
 
 class vqgan:
-    model_names = ["vqgan_imagenet_f16_16384"]
+    model_names = ["wikiart_16384"]
+    load_from_pickle = True
 
     model_names_full = ["vqgan_imagenet_f16_16384",
-                   "wikiart_16384",
-                   "coco",
-                   "drin_transformer",
-                   "cin_transformer"]
+                        "wikiart_16384",
+                        "coco",
+                        "drin_transformer",
+                        "cin_transformer"]
 
     # @title Parámetros
-    textos = "moon and dark sky"
+    textos = ""
     channel = ""
     ancho = 256
     alto = 256
     video_fps = 60
-    stepsize = 0.1
 
+    stepsize = 0.2
+    imagen_inicial = "dezzy.jpg"  # @param {type:"string"}
+    init_weight = 0.05
+    max_iteraciones = 10  # @param {type:"number"}
 
-    map_x = np.zeros((ancho,alto),dtype=np.float32)
-    map_y = np.zeros((ancho,alto),dtype=np.float32)
-
+    map_x = np.zeros((ancho, alto), dtype=np.float32)
+    map_y = np.zeros((ancho, alto), dtype=np.float32)
 
     # @param ["vqgan_imagenet_f16_16384", "vqgan_imagenet_f16_1024", "wikiart_1024", "wikiart_16384", "coco", "faceshq", "sflckr", "ade20k", "ffhq", "celebahq", "gumbel_8192"]
     modelo = "vqgan_imagenet_f16_16384"
-
-    #modelo = "wikiart_16384"
     intervalo_imagenes = 1  # @param {type:"number"}
-    imagen_inicial = "dezzy.jpg"  # @param {type:"string"}
-    init_weight = 0.1
     imagenes_objetivo = None  # @param {type:"string"}
     seed = 5  # @param {type:"number"}
-    max_iteraciones = 10  # @param {type:"number"}
+    
     input_images = ""
 
     i = 0
@@ -111,8 +112,7 @@ class vqgan:
 
         args = self.args
 
-        print(
-            f" {bcolors.OKBLUE}[CUDA] Using device: {self.device}{bcolors.ENDC}")
+        print(f" {bcolors.OKBLUE}[CUDA] Using device: {self.device}{bcolors.ENDC}")
         if self.textos:
             print(' [CONFIG] Using texts:', self.textos)
         if self.imagenes_objetivo:
@@ -125,11 +125,24 @@ class vqgan:
         torch.manual_seed(seed)
         print(' [CONFIG] Using seed:', seed)
 
-        self.models = [gan_base_module.load_vqgan_model(
-            f"models/{name}.yaml", f"models/{name}.ckpt").to(self.device) for name in self.model_names]
+
+        # Load pickle models
+        if self.load_from_pickle:
+            with open("pickle_models", "rb") as f:
+                self.models = pickle.load(f)
+        else:
+            self.models = [gan.load_vqgan_model(
+                f"models/{name}.yaml", f"models/{name}.ckpt").to(self.device) for name in self.model_names]
+
+            with open("pickle_models", "wb") as f:
+                pickle.dump(self.models, f)
+
+
+
+
 
         self.model = self.models[0]
-        self.perceptor = gan_base_module.clip.load(args.clip_model, jit=False)[
+        self.perceptor = gan.clip.load(args.clip_model, jit=False)[
             0].eval().requires_grad_(False).to(self.device)
 
         self.cut_size = self.perceptor.visual.input_resolution
@@ -137,7 +150,7 @@ class vqgan:
         self.e_dim = self.model.quantize.e_dim
 
         self.f = 2**(self.model.decoder.num_resolutions - 1)
-        self.make_cutouts = gan_base_module.MakeCutouts(
+        self.make_cutouts = gan.MakeCutouts(
             self.cut_size, args.cutn, cut_pow=args.cut_pow)
 
         n_toks = self.model.quantize.n_e
@@ -151,16 +164,16 @@ class vqgan:
             dim=0).values[None, :, None, None]
 
         if args.init_image:
-            pil_image = gan_base_module.Image.open(
+            pil_image = gan.Image.open(
                 args.init_image).convert('RGB')
             pil_image = pil_image.resize(
-                (sideX, sideY), gan_base_module.Image.LANCZOS)
+                (sideX, sideY), gan.Image.LANCZOS)
             self.img_latest = pil_image
-            self.z, *_ = self.model.encode(gan_base_module.TF.to_tensor(
+            self.z, *_ = self.model.encode(gan.TF.to_tensor(
                 pil_image).to(self.device).unsqueeze(0) * 2 - 1)
 
         else:
-            one_hot = gan_base_module.F.one_hot(torch.randint(
+            one_hot = gan.F.one_hot(torch.randint(
                 n_toks, [toksY * toksX], device=self.device), n_toks).float()
             self.z = one_hot @ self.model.quantize.embedding.weight
             self.z = self.z.view(
@@ -168,19 +181,16 @@ class vqgan:
 
         self.z_orig = self.z.clone()
         self.z.requires_grad_(True)
-        self.opt = gan_base_module.optim.Adagrad([self.z], lr=args.step_size)
-        self.normalize = gan_base_module.transforms.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
-                                                              std=[0.26862954, 0.26130258, 0.27577711])
+        self.opt = gan.optim.Adagrad([self.z], lr=args.step_size)
+        self.normalize = gan.transforms.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
+                                                  std=[0.26862954, 0.26130258, 0.27577711])
+
 
         self.pMs = []
         self.args.prompts = []
         #self.generate("/imagenet", args.prompts[0])
 
-        print(f' {bcolors.OKGREEN}[STATUS] Init complete. {bcolors.ENDC} \n\n\n\n')
-
-
-
-
+        print(f' {bcolors.OKGREEN}[STATUS] Init complete. {bcolors.ENDC} \n\n')
 
     def switch_model(self, model_index=0):
 
@@ -189,15 +199,8 @@ class vqgan:
             print(f' [MODEL] switched to {self.model_names[model_index]}')
 
         #model_index = random.randint(0,len(self.models)-1)
+            
 
-    def refresh_z(self):    
-        # Load new init image for next round
-        self.z, *_ = self.model.encode(gan_base_module.TF.to_tensor(
-            self.img_latest).to(self.device).unsqueeze(0) * 2 - 1)
-        self.z_orig = self.z.clone()
-        self.z.requires_grad_(True)
-        self.opt = gan_base_module.optim.Adagrad(
-            [self.z], lr=self.args.step_size)
 
     def cam_init(self):
         self.cam = pyvirtualcam.Camera(
@@ -206,12 +209,12 @@ class vqgan:
             f' {bcolors.OKBLUE}[DEVICE] Using virtual Camera: {self.cam.device} {bcolors.ENDC}')
 
     def synth(self):
-        z_q = gan_base_module.vector_quantize(self.z.movedim(
+        z_q = gan.vector_quantize(self.z.movedim(
             1, 3), self.model.quantize.embedding.weight).movedim(3, 1)
-        return gan_base_module.clamp_with_grad(self.model.decode(z_q).add(1).div(2), 0, 1)
+        return gan.clamp_with_grad(self.model.decode(z_q).add(1).div(2), 0, 1)
 
     @torch.no_grad()
-    #@torch.inference_mode()
+    # @torch.inference_mode()
     def checkin(self, i, losses):
         losses_str = ', '.join(f'{loss.item():g}' for loss in losses)
         print(f' {bcolors.WARNING}[VQGAN] step: {i}/{self.max_iteraciones * ((i-1)//self.max_iteraciones + 1)}, loss: {sum(losses).item():g}, losses: {losses_str} {bcolors.ENDC}', end="\r")
@@ -225,22 +228,23 @@ class vqgan:
         result = []
 
         if self.args.init_weight:
-            result.append(gan_base_module.F.mse_loss(
+            result.append(gan.F.mse_loss(
                 self.z, self.z_orig) * self.args.init_weight / 2)
 
         for prompt in self.pMs:
             result.append(prompt(iii))
+            
 
         img = np.array(out.mul(255).clamp(0, 255)[0].cpu(
         ).detach().numpy().astype(np.uint8))[:, :, :]
         img = np.transpose(img, (1, 2, 0))
+        
         self.img_latest = img
         self.frames.append(img)
 
-
         #filename = f"steps_{self.i:04}.png"
         img_file = Image.fromarray(img, 'RGB')
-        #img_file.save("lastest.png")
+        # img_file.save("lastest.png")
         self.cam.send(np.uint8(img_file))
         self.cam.sleep_until_next_frame()
 
@@ -260,77 +264,93 @@ class vqgan:
         with torch.inference_mode():
             self.z.copy_(self.z.maximum(self.z_min).minimum(self.z_max))
 
-    def generate(  
-        self, 
-        channel, 
-        input_prompt = "", 
-        target_image = "", 
-        ramdisk = False):
+
+    def refresh_z(self):
+        self.pMs = []
+        self.args.prompts = []
+        
+        # Load new init image for next round
+        self.z, *_ = self.model.encode(gan.TF.to_tensor(
+            self.img_latest).to(self.device).unsqueeze(0) * 2 - 1)
+        self.z_orig = self.z.clone()
+        self.z.requires_grad_(True)
+        self.opt = gan.optim.Adagrad(
+            [self.z], lr=self.args.step_size)
+
+        # start keyframe
+        batch = self.make_cutouts(gan.TF.to_tensor(
+            self.img_latest).unsqueeze(0).to(self.device))
+        embed = self.perceptor.encode_image(self.normalize(batch)).float()
+         
+        self.pMs.append(gan.Prompt(
+            embed, self.init_weight, float('-inf')).to(self.device))
+
+
+    def generate(
+            self,
+            channel,
+            input_prompt="",
+            target_image="",
+            pMs_size = 1,
+            ramdisk=False):
 
         start = time.time()
 
-
-        self.args.prompts.append(input_prompt)
-        
-
         toksX, toksY = self.args.size[0] // self.f, self.args.size[1] // self.f
         sideX, sideY = toksX * self.f, toksY * self.f
-        
-        
+
+        self.refresh_z()
+
         # Text Prompt
         if input_prompt:
             print(f" {bcolors.OKCYAN}[PROMPT] {input_prompt} {bcolors.ENDC}")
+            self.args.prompts.append(input_prompt)
 
-            txt, weight, stop = gan_base_module.parse_prompt(input_prompt)
+            txt, weight, stop = gan.parse_prompt(input_prompt)
             embed = self.perceptor.encode_text(
-                gan_base_module.clip.tokenize(txt).to(self.device)).float()
-            self.pMs.append(gan_base_module.Prompt(
+                gan.clip.tokenize(txt).to(self.device)).float()
+            self.pMs.append(gan.Prompt(
                 embed, weight, stop).to(self.device))
-
 
         # Target Img
         if target_image:
-            # print(f" {bcolors.OKCYAN}[IMAGE PROMPT] {target_image} {bcolors.ENDC}")
 
-            path, weight, stop = gan_base_module.parse_prompt(target_image)
+            # target keyframe
+            path, weight, stop = gan.parse_prompt(target_image)
             if ramdisk:
                 path = "R:/" + path
-            img = gan_base_module.resize_image(
+
+            # force weight
+            weight = 1 - self.init_weight
+
+            img = gan.resize_image(
                 Image.open(path).convert('RGB'), (sideX, sideY))
-                
-            batch = self.make_cutouts(gan_base_module.TF.to_tensor(
+
+            batch = self.make_cutouts(gan.TF.to_tensor(
                 img).unsqueeze(0).to(self.device))
             embed = self.perceptor.encode_image(self.normalize(batch)).float()
-            self.pMs.append(gan_base_module.Prompt(
+            
+            self.pMs.append(gan.Prompt(
                 embed, weight, stop).to(self.device))
 
             # Randomize Init Weight
-            self.args.init_weight = round(random.uniform(0.15, 0.25), 2)
+            #self.args.init_weight = round(random.uniform(0.04, 0.06), 2)
             #self.args.step_size = round(random.uniform(0.4, 0.6), 2)
 
-        # Prompts always under 3 items
-        if len(self.pMs) > 2:
-            self.pMs.pop(0)
-
-        # Model Select
-        #    self.switch_model(2)
-        #self.switch_model(1)
-        self.refresh_z()
-    
+        print(f'\n')
         for iter in range(self.max_iteraciones):
             self.train()
 
         time_measure = round((time.time()-start), 2)
         fps = round((1 / time_measure * self.max_iteraciones), 2)
-        print(f" \r[METRIC] Execution time {time_measure} s, fps {fps}, init_weight {self.args.init_weight}, step_size {self.args.step_size}", end="\r")
+        print(f" \n [METRIC] Execution time {time_measure} s, fps {fps}, init_weight {self.args.init_weight}, step_size {self.args.step_size}", end="\r")
 
-    
     # Video
-    def save_video(self, video_name = "default_mov_out", ramdisk = False, interp_frames = 9):
-        for l in self.pMs:
-            print(l)
+
+    def save_video(self, video_name="default_mov_out", ramdisk=False, interp_frames=9):
         if video_name:
-            video_name = video_name + "_" + str(random.randint(0, 10000)) + ".mp4"
+            video_name = video_name + "_" + \
+                str(random.randint(0, 10000)) + ".mp4"
             if ramdisk:
                 video_name = "R:/" + video_name
             writer = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(
@@ -346,11 +366,13 @@ class vqgan:
                     cv2.addWeighted(
                         self.frames[frame_index], 1 - weight,
                         self.frames[frame_index + 1], weight, 0.0,
-                        dst = interp_frame)
+                        dst=interp_frame)
                     writer.write(interp_frame)
 
             writer.release()
-            print(f"\r {bcolors.OKCYAN}[VIDEO] saved to {video_name}{bcolors.ENDC}")
+            print(
+                f"\n {bcolors.OKCYAN}[VIDEO] saved to {video_name}{bcolors.ENDC}")
+
 
 class bcolors:
     HEADER = '\033[95m'
@@ -404,7 +426,8 @@ class command_handle:
 
     def loop(self):
         while True:
-            channel, input_prompt = self.process_input(input("Your prompt here: "))
+            channel, input_prompt = self.process_input(
+                input("Your prompt here: "))
             vq.generate(channel, input_prompt)
 
     def process_input(input_prompt):
@@ -414,21 +437,21 @@ class command_handle:
     def test_prompts(self):
         print(" [DEBUG] Using default test prompt sequence")
         prompts = "cube / spiral / ocean and beach / night and moon / dark sky and moon / green and orange colors / broccoli and vegetable"
-        
+
         prompts = prompts.split(" / ")
         for input_prompt in prompts:
             vq.generate("/imagenet", input_prompt)
 
-    def test_image_prompts(self, max_iter = 5):
+    def test_image_prompts(self, max_iter=5):
         print(" [DEBUG] Using tdout.jpg as target image")
         for i in range(max_iter):
             vq.generate(
-                channel = "/imagenet",
-                target_image = "tdout_cam.jpg",
-                ramdisk = True)
+                channel="/imagenet",
+                target_image="tdout_noise.jpg",
+                ramdisk=True)
         vq.save_video(
-            video_name = "tdcam_out",
-            ramdisk = True)
+            video_name="tdcam_out",
+            ramdisk=True)
 
 
 def main():
@@ -437,11 +460,8 @@ def main():
     handle = command_handle()
     handle.test_image_prompts()
 
-
     # OSC MODE
     #handle = osc_handle()
-
-
 
 
 vq = vqgan()
