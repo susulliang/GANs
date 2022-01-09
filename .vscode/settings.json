@@ -1,3 +1,6 @@
 {
-    "python.analysis.extraPaths": ["taming-transformers", "SRCNN"]
+    "python.analysis.extraPaths": [
+        "taming-transformers", 
+        "SRCNN",
+    ]
 }

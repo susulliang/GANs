@@ -5,20 +5,23 @@ import random
 import pickle
 import traceback
 
+
 import cv2
-import imageio
+
 import numpy as np
 import pyvirtualcam
 import torch
+import torch.multiprocessing as mp
+
 from PIL import Image, ImageFile
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import BlockingOSCUDPServer
 
 import gan_base_module as gan
-import superres
+import srscaler
 import time
 
-# TO-DO implement SRCNN
+
 
 
 class vqgan:
@@ -42,7 +45,7 @@ class vqgan:
     ancho = 256
     alto = 256
     video_fps = 60
-    superres_factor = 2
+    superres_factor = 3
 
     stepsize = 0.2
     imagen_inicial = "tdout_cam.jpg"  # @param {type:"string"}
@@ -73,13 +76,17 @@ class vqgan:
 
     frames = []
     frames_2x = []
+    frames_supeResed = []
+    frames_supeResed = []
     first_run = True
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print(torch.cuda.get_device_capability())
 
     def __init__(self) -> None:
 
         self.cam_init()
-        self.res_scaler = superres.upscaler(cuda_on = False)
+        self.res_scaler = srscaler.upscaler(cuda_on = True, factor = self.superres_factor)
+        print(f" {bcolors.OKGREEN}[SRCNN] Image SuperRes device: {self.res_scaler.device}{bcolors.ENDC}")
         self.img_latest = 0
 
         if self.seed == -1:
@@ -255,15 +262,14 @@ class vqgan:
         #img_file = Image.fromarray(img, 'RGB')
 
         # =============================================
-        # Upscale 2x SRCNN
+        # Upscale 3x SRCNN
         # =============================================
 
-        img_2x = np.uint8((self.res_scaler.res2x(img)))
-        self.frames_2x.append(img_2x)
+        img_3x = np.uint8((self.res_scaler.up(img)))
+        self.frames_supeResed.append(img_3x)
 
-        self.cam.send(img_2x)
+        self.cam.send(img_3x)
         self.cam.sleep_until_next_frame()
-
 
         return result
 
@@ -275,6 +281,7 @@ class vqgan:
             self.checkin(self.i, lossAll)
         loss = sum(lossAll)
         loss.backward()
+
         self.opt.step()
         # with torch.no_grad():
 
@@ -366,8 +373,6 @@ class vqgan:
 
     # Video
     def save_video(self, video_name="default_mov_out", ramdisk=False, interp_frames=9):
-        #print((self.frames[0]))
-        #print((self.frames_2x[0]))
         if video_name:
             video_name = video_name + "_" + \
                 str(random.randint(0, 10000)) + ".mp4"
@@ -383,19 +388,19 @@ class vqgan:
             f_counter = 0
 
             # add interpolation to smooth out video
-            for frame_index in range(len(self.frames_2x)-1):
-                writer.write(self.frames_2x[frame_index])
-                self.cam.send(np.uint8(self.frames_2x[frame_index]))
+            for frame_index in range(len(self.frames_supeResed)-1):
+                writer.write(self.frames_supeResed[frame_index])
+                self.cam.send(np.uint8(self.frames_supeResed[frame_index]))
                 self.cam.sleep_until_next_frame()
 
                 f_counter += 1
-                interp_frame = self.frames_2x[frame_index].copy()
+                interp_frame = self.frames_supeResed[frame_index].copy()
                 interp_step = 1 / (interp_frames + 1)
                 for interp_index in range(interp_frames):
                     weight = interp_step * (interp_index + 1)
                     cv2.addWeighted(
-                        self.frames_2x[frame_index], 1 - weight,
-                        self.frames_2x[frame_index + 1], weight, 0.0,
+                        self.frames_supeResed[frame_index], 1 - weight,
+                        self.frames_supeResed[frame_index + 1], weight, 0.0,
                         dst=interp_frame)
                     writer.write(interp_frame)
                     self.cam.send(np.uint8(interp_frame))
@@ -422,8 +427,8 @@ class bcolors:
 # == OSC handlers
 class osc_handle:
 
-    def __init__(self, ip="192.168.0.138", port=5006) -> None:
-
+    def __init__(self, vq_ref, ip="192.168.0.138", port=5006) -> None:
+        self.vq = vq_ref
         dispatcher = Dispatcher()
         dispatcher.set_default_handler(self.default_handler)
         server = BlockingOSCUDPServer((ip, port), dispatcher)
@@ -432,12 +437,10 @@ class osc_handle:
               ip + " at port " + str(port))
         server.serve_forever()  # Blocks forever
 
-    def print_handler(address, *osc_args):
+    def print_handler(self, address, *osc_args):
         print(f"{address}: {osc_args}")
 
-    def default_handler(address, *osc_args):
-        global vq
-
+    def default_handler(self, address, *osc_args):
         channel = str(osc_args[0]).strip()
         input_prompt = str(osc_args[1]).strip()
 
@@ -450,18 +453,20 @@ class osc_handle:
         if input_prompt.strip() == "":
             exit()
 
-        vq.generate(channel, input_prompt)
+        self.vq.generate(channel, input_prompt)
 
 
 class command_handle:
 
-    global vq
+    def __init__(self, vq_ref) -> None:
+        self.vq = vq_ref
+        pass
 
     def loop(self):
         while True:
             channel, input_prompt = self.process_input(
                 input("Your prompt here: "))
-            vq.generate(channel, input_prompt)
+            self.vq.generate(channel, input_prompt)
 
     def process_input(input_prompt):
         input_prompt = input_prompt.strip()
@@ -473,31 +478,30 @@ class command_handle:
 
         prompts = prompts.split(" / ")
         for input_prompt in prompts:
-            vq.generate("/imagenet", input_prompt)
+            self.vq.generate("/imagenet", input_prompt)
 
     def test_image_prompts(self, max_iter=20):
         target_image_file = "tdout_noise.jpg"
         print(f" [DEBUG] Using {target_image_file} as target image")
 
         for i in range(max_iter):
-            vq.generate(
+            self.vq.generate(
                 channel="/imagenet",
                 target_image=target_image_file,
                 ramdisk=True)
                 
-        vq.save_video(
+
+        self.vq.save_video(
             video_name="vid_interp_out",
             ramdisk=True)
 
 
 def main():
-    # LOCAL COMMAND MODE
-    global vq
-    handle = command_handle()
-    try:
-        handle.test_image_prompts()
-    except Exception:
-        traceback.print_exc()
+    vq = vqgan()
+    handle = command_handle(vq)
+
+    handle.test_image_prompts()
+
     
     print(f' {bcolors.OKGREEN}[STATUS] Command completed, graceful byebye! {bcolors.ENDC} \n')
 
@@ -505,12 +509,12 @@ def main():
     #handle = osc_handle()
 
 
-vq = vqgan()
+
 if __name__ == "__main__":
     try:
         main()
-    except:
-        exit()
+    except Exception:
+        traceback.print_exc()
 
 
 # cube / spiral / ocean and beach / night and moon / dark sky and moon / green and orange colors / broccoli and vegetable

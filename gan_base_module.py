@@ -27,11 +27,6 @@ sys.path.append('taming-transformers')
 from taming.models import cond_transformer, vqgan
 
 
-
-# from imgtag import ImgTag    # metadatos
-# from libxmp import *         # metadatos
-# import libxmp                # metadatos
-
 for p in sys.path:
     print(" [PATH] " + p)
 
