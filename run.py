@@ -36,7 +36,7 @@ def main():
     # --------------------                        
     # -> Run Parameters
     # --------------------    
-    vq_args = Namespace(model_names=["wikiart_16384"],
+    vq_args = Namespace(model_names=["vqgan_imagenet_f16_16384"],
         model_names_full=model_names_full,
         load_from_pickle=True,
         current_model_index=0,
@@ -45,11 +45,11 @@ def main():
         ancho=256,
         alto=256,
         video_fps=60,
-        superres_factor=3,
-        step_size=0.3,
+        superres_factor=4,
+        step_size=1,
         init_image="winter-forest.jpg",  # @param {type:"string"}
-        init_weight=0.05,
-        max_iteraciones=25,  # @param {type:"number"}
+        init_weight=0.2,
+        max_iteraciones=5,  # @param {type:"number"}
         seed=5,  # @param {type:"number"}
         prompts="",
         image_prompts="",
@@ -72,10 +72,12 @@ def main():
     handle = CmdHandle(vq_ref = vq)
     handle.test_image_prompts()
 
-    # OSC Mode
-    handle = OSCHandle(vq_ref = vq)
-    handle.start_listening()
-    print(f' {BColors.OKGREEN}[STATUS] Command completed, graceful byebye! {bcolors.ENDC} \n')
+
+
+    # -> OSC Mode
+    # handle = OSCHandle(vq_ref = vq)
+    # handle.start_listening()
+    print(f' {BColors.OKGREEN}[STATUS] Command completed, graceful byebye! {BColors.ENDC} \n')
 
 
 
