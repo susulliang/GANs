@@ -25,7 +25,7 @@ class CmdHandle:
 
         self.vq.save_video(video_name="vid_interp_out")
 
-    def test_image_prompts(self, max_iter=120):
+    def test_image_prompts(self, max_iter=20):
         target_image_file = "tdout_noise.jpg"
         print(f" [DEBUG] Using {target_image_file} as target image")
 

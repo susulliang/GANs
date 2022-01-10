@@ -1,12 +1,16 @@
 import sys, os
-from BColors import BColors
+
+
+# -------------------------------------
+# -> ROOT_DIR should be on realtime-gan
+# -------------------------------------
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
-print(ROOT_DIR)
+print(f'Launching from {ROOT_DIR}')
 sys.path.insert(0,f'{ROOT_DIR}/srcnn_models')
 sys.path.insert(0,f'{ROOT_DIR}/taming_transformers')
 
 from argparse import Namespace
-
+from BColors import BColors
 
 import ClassVQGan
 import traceback
@@ -14,9 +18,6 @@ import traceback
 from ModeOSC import OSCHandle
 from ModeCmd import CmdHandle
 
-#from model import SRCNN
-
-import ClassSRCnn
 
 import torch
 
@@ -53,8 +54,6 @@ def main():
         seed=5,  # @param {type:"number"}
         prompts="",
         image_prompts="",
-        noise_prompt_seeds="",
-        noise_prompt_weights="",
         size="(256, 256)",
         clip_model='ViT-B/32',
         cutn=8,
@@ -68,14 +67,13 @@ def main():
     # Global variables for storing networks, models and tensors
     vq = ClassVQGan.VQGanClip(args = vq_args)
 
-    # Command Prompt Mode
+    # -> Automated Command Prompt Mode
     handle = CmdHandle(vq_ref = vq)
     handle.test_image_prompts()
 
 
-
     # -> OSC Mode
-    # handle = OSCHandle(vq_ref = vq)
+    handle = OSCHandle(vq_ref = vq)
     # handle.start_listening()
     print(f' {BColors.OKGREEN}[STATUS] Command completed, graceful byebye! {BColors.ENDC} \n')
 
