@@ -1,20 +1,22 @@
-import sys
+import sys, os
 from BColors import BColors
-sys.path.append('.srcnn_models')
-sys.path.append('.taming_transformers')
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
+print(ROOT_DIR)
+sys.path.insert(0,f'{ROOT_DIR}/srcnn_models')
+sys.path.insert(0,f'{ROOT_DIR}/taming_transformers')
 
 from argparse import Namespace
 
 
 import ClassVQGan
-import ClassSRCnn
-
-
 import traceback
 
 from ModeOSC import OSCHandle
 from ModeCmd import CmdHandle
-from model import SRCNN
+
+#from model import SRCNN
+
+import ClassSRCnn
 
 import torch
 
@@ -22,6 +24,7 @@ import torch
 def main():
     
     print(p for p in sys.path)
+
     my_device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     
     model_names_full = ("faceshq",
@@ -30,12 +33,12 @@ def main():
                             "coco",
                             "drin_transformer",
                             "cin_transformer")
-                            
+    # --------------------                        
     # -> Run Parameters
-    fuckme = Namespace(a=1, b='c')
-    print(fuckme)
-    vq_args = Namespace(model_names="wikiart_16384",
-        load_from_pickle=False,
+    # --------------------    
+    vq_args = Namespace(model_names=["wikiart_16384"],
+        model_names_full=model_names_full,
+        load_from_pickle=True,
         current_model_index=0,
         textos="",
         channel="",
@@ -67,7 +70,7 @@ def main():
 
     # Command Prompt Mode
     handle = CmdHandle(vq_ref = vq)
-    handle.start_looping()
+    handle.test_image_prompts()
 
     # OSC Mode
     handle = OSCHandle(vq_ref = vq)

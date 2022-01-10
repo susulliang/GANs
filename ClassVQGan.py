@@ -1,7 +1,8 @@
 # Base VQGAN CLIP functions and helpers
 # The VQGAN+CLIP (z+quantize method) notebook this was based on is by Katherine
 # Crowson (https://github.com/crowsonkb
-
+import os
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
 # Imports
 import cv2
 from CLIP import clip
@@ -66,7 +67,7 @@ class VQGanClip:
         if args.seed == -1:
             args.seed = None
 
-        print(f" {BColors.OKBLUE}[CUDA] Using device: {self.device}{BColors.ENDC}")
+        print(f" {BColors.OKBLUE}[CUDA] Using device: {args.device}{BColors.ENDC}")
 
         torch.manual_seed(args.seed)
         print(' [CONFIG] Using seed:', args.seed)
@@ -75,15 +76,15 @@ class VQGanClip:
         # -> Load pickle models
         if args.load_from_pickle:
             print(f" {BColors.OKBLUE}[MODELS] Loading from local pickle... {BColors.ENDC}")
-            with open(f"pickles/pickle_models_{args.model_names[self.current_model_index]}", "rb") as f:
+            with open(f"{ROOT_DIR}/pickles/pickle_models_{args.model_names[args.current_model_index]}", "rb") as f:
                 self.models = pickle.load(f)
                 
         else:
             print(f" {BColors.OKBLUE}[MODELS] Loading from models folder... {BColors.ENDC}")
             self.models = [load_vqgan_model(
-                f"models/{name}.yaml", f"models/{name}.ckpt").to(self.device) for name in args.model_names]
+                f"{ROOT_DIR}/models/{name}.yaml", f"models/{name}.ckpt").to(args.device) for name in args.model_names]
 
-            with open(f"pickles/pickle_models_{args.model_names[args.current_model_index]}", "wb") as f:
+            with open(f"{ROOT_DIR}/pickles/pickle_models_{args.model_names[args.current_model_index]}", "wb") as f:
                 pickle.dump(self.models, f)
 
         print(f" {BColors.OKBLUE}[MODELS] Successfully loaded {len(self.models)} models! {BColors.ENDC}")
@@ -105,7 +106,7 @@ class VQGanClip:
 
         n_toks = self.model.quantize.n_e
 
-        toksX, toksY = args.size[0] // self.f, args.size[1] // self.f
+        toksX, toksY = args.ancho // self.f, args.alto // self.f
         sideX, sideY = toksX * self.f, toksY * self.f
 
         self.z_min = self.model.quantize.embedding.weight.min(
@@ -115,16 +116,16 @@ class VQGanClip:
 
         if args.init_image:
             pil_image = Image.open(
-                f"images/{args.init_image}").convert('RGB')
+                f"{ROOT_DIR}/images/{args.init_image}").convert('RGB')
             pil_image = pil_image.resize(
                 (sideX, sideY), Image.LANCZOS)
             self.img_latest = pil_image
             self.z, *_ = self.model.encode(TF.to_tensor(
-                pil_image).to(self.device).unsqueeze(0) * 2 - 1)
+                pil_image).to(args.device).unsqueeze(0) * 2 - 1)
 
         else:
             one_hot = F.one_hot(torch.randint(
-                n_toks, [toksY * toksX], device=self.device), n_toks).float()
+                n_toks, [toksY * toksX], device=args.device), n_toks).float()
             self.z = one_hot @ self.model.quantize.embedding.weight
             self.z = self.z.view(
                 [-1, toksY, toksX, self.e_dim]).permute(0, 3, 1, 2)
@@ -141,7 +142,7 @@ class VQGanClip:
         #self.generate("/imagenet", args.prompts[0])
 
         print(f' {BColors.OKGREEN}[STATUS] Init complete. {BColors.ENDC} \n\n')
-        print(f' {BColors.OKBLUE}[MODELS] Current model:  {args.model_names[self.current_model_index]} ')
+        print(f' {BColors.OKBLUE}[MODELS] Current model:  {args.model_names[args.current_model_index]} ')
 
     def switch_model(self, model_index=0):
         self.args.current_model_index = model_index
@@ -240,7 +241,7 @@ class VQGanClip:
 
         # start keyframe
         batch = self.make_cutouts(TF.to_tensor(
-            self.img_latest).unsqueeze(0).to(self.device))
+            self.img_latest).unsqueeze(0).to(args.device))
         embed = self.perceptor.encode_image(self.normalize(batch)).float()
          
         self.pMs.append(Prompt(
@@ -256,7 +257,7 @@ class VQGanClip:
 
         start = time.time()
         args = self.args
-        toksX, toksY = args.size[0] // self.f, args.size[1] // self.f
+        toksX, toksY = args.ancho // self.f, args.alto // self.f
         sideX, sideY = toksX * self.f, toksY * self.f
 
         self.refresh_z()
@@ -268,12 +269,12 @@ class VQGanClip:
 
             txt, weight, stop = parse_prompt(input_prompt)
             embed = self.perceptor.encode_text(
-                clip.tokenize(txt).to(self.device)).float()
+                clip.tokenize(txt).to(args.device)).float()
 
             # force weight
             weight = 1 - self.init_weight
             self.pMs.append(Prompt(
-                embed, weight, stop).to(self.device))
+                embed, weight, stop).to(args.device))
 
         # Target Img
         if target_image:
@@ -295,7 +296,7 @@ class VQGanClip:
             embed = self.perceptor.encode_image(self.normalize(batch)).float()
             
             self.pMs.append(Prompt(
-                embed, weight, stop).to(self.device))
+                embed, weight, stop).to(args.device))
 
 
         print(f'\n')
@@ -303,7 +304,7 @@ class VQGanClip:
             self.train()
 
         time_measure = round((time.time()-start), 2)
-        fps = round((1 / time_measure * self.max_iteraciones), 2)
+        fps = round((1 / time_measure * args.max_iteraciones), 2)
         print(f" \n {BColors.OKGREEN}[METRIC] Execution time {time_measure} s, fps {fps}, upres_time {self.res_scaler.last_metric}s {BColors.ENDC}", end="\r")
 
 
@@ -316,6 +317,8 @@ class VQGanClip:
 
             if args.ramdisk:
                 video_name = args.ramdisk + video_name
+            else:
+                video_name = ROOT_DIR + "/" + video_name
 
             writer = cv2.VideoWriter(
                 video_name, 
@@ -496,7 +499,7 @@ class MakeCutouts(nn.Module):
 def load_vqgan_model(config_path, checkpoint_path):
     config = OmegaConf.load(config_path)
     if config.model.target == 'taming.models.vqgan.VQModel':
-        model = vqgan.VQModel(**config.model.params)
+        model = taming.models.vqgan.VQModel(**config.model.params)
         model.eval().requires_grad_(False)
         model.init_from_ckpt(checkpoint_path)
     elif config.model.target == 'taming.models.cond_transformer.Net2NetTransformer':
