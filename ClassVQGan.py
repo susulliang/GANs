@@ -29,7 +29,7 @@ import time
 import argparse
 import pickle
 import pyvirtualcam
-
+from taming_transformers import taming
 
 import sys, random
 
@@ -200,7 +200,7 @@ class VQGanClip:
         self.frames.append(img)
 
         # =============================================
-        # Upscale 3x SRCNN
+        # Upscale 4x SRCNN
         # =============================================
 
         img_nx = np.uint8((self.res_scaler.up(img)))
@@ -274,7 +274,7 @@ class VQGanClip:
                 clip.tokenize(txt).to(args.device)).float()
 
             # force weight
-            weight = 1 - self.init_weight
+            weight = 1 - args.init_weight
             self.pMs.append(Prompt(
                 embed, weight, stop).to(args.device))
 
@@ -290,8 +290,13 @@ class VQGanClip:
             # force weight
             weight = 1 - args.init_weight
 
-            img = resize_image(
-                Image.open(path).convert('RGB'), (sideX, sideY))
+            try:
+                img = resize_image(
+                    Image.open(path).convert('RGB'), (sideX, sideY))
+            except Exception:
+                img = self.img_latest.clone()
+                print(f" {BColors.FAIL}[READ] Corrupted image input. Skipping frame. {BColors.ENDC}")
+                return
 
             batch = self.make_cutouts(TF.to_tensor(
                 img).unsqueeze(0).to(args.device))
@@ -505,13 +510,13 @@ def load_vqgan_model(config_path, checkpoint_path):
         model.eval().requires_grad_(False)
         model.init_from_ckpt(checkpoint_path)
     elif config.model.target == 'taming.models.cond_transformer.Net2NetTransformer':
-        parent_model = cond_transformer.Net2NetTransformer(
+        parent_model = taming.models.cond_transformer.Net2NetTransformer(
             **config.model.params)
         parent_model.eval().requires_grad_(False)
         parent_model.init_from_ckpt(checkpoint_path)
         model = parent_model.first_stage_model
     elif config.model.target == 'taming.models.vqgan.GumbelVQ':
-        model = vqgan.GumbelVQ(**config.model.params)
+        model = taming.models.vqgan.GumbelVQ(**config.model.params)
         print(config.model.params)
         model.eval().requires_grad_(False)
         model.init_from_ckpt(checkpoint_path)

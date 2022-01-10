@@ -1,5 +1,5 @@
 import sys, os
-import ClassStyleClip
+#import ClassStyleClip
 
 # -------------------------------------
 # -> ROOT_DIR should be on realtime-gan
@@ -23,8 +23,6 @@ import torch
 
 
 def main():
-    
-    print(p for p in sys.path)
 
     my_device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     
@@ -34,6 +32,9 @@ def main():
                             "coco",
                             "drin_transformer",
                             "cin_transformer")
+    
+    tracking_img = "tdout_noise.jpg"
+
     # --------------------                        
     # -> Run Parameters
     # --------------------    
@@ -47,16 +48,16 @@ def main():
         alto=256,
         video_fps=60,
         superres_factor=4,
-        step_size=1,
-        init_image="winter-forest.jpg",  # @param {type:"string"}
-        init_weight=0.2,
-        max_iteraciones=5,  # @param {type:"number"}
+        step_size=0.2,
+        init_image=tracking_img,  
+        init_weight=0.05,
+        max_iteraciones=10,  # @param {type:"number"}
         seed=5,  # @param {type:"number"}
-        prompts="",
+        prompts=[],
         image_prompts="",
         size="(256, 256)",
         clip_model='ViT-B/32',
-        cutn=8,
+        cutn=12,
         cut_pow=1.,
         display_freq=1,
         device=my_device,
@@ -65,15 +66,15 @@ def main():
         video_interp_frames=9)
 
     # Global variables for storing networks, models and tensors
-    vq = ClassVQGan.VQGanClip(args = vq_args)
+    vq = ClassVQGan.VQGanClip(args=vq_args)
 
     # -> Automated Command Prompt Mode
-    handle = CmdHandle(vq_ref = vq)
-    handle.test_image_prompts()
+    handle = CmdHandle(vq_ref=vq)
+    handle.test_image_prompts(target_image_file="tdout_noise.jpg")
 
 
     # -> OSC Mode
-    handle = OSCHandle(vq_ref = vq)
+    handle = OSCHandle(vq_ref=vq)
     # handle.start_listening()
     print(f' {BColors.OKGREEN}[STATUS] Command completed, graceful byebye! {BColors.ENDC} \n')
 
@@ -81,7 +82,6 @@ def main():
 
 if __name__ == "__main__":
     try:
-        #ClassStyleClip.test_run()
         main()
     except Exception:
         traceback.print_exc()

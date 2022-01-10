@@ -17,7 +17,7 @@ class CmdHandle:
     def test_prompts(self):
         print(" [DEBUG] Using default test prompt sequence")
         prompts = "cube / spiral / ocean and beach / night and moon / dark sky and moon / green and orange colors / broccoli and vegetable"
-        prompts = "winter day with some trees / a snowy russian forest / forest with very beautiful landscape / winter day with some trees / a snowy russian forest / forest with very beautiful landscape"
+        prompts = "wassily kandinsky style landscapes / wassily kandinsky style cubes / beautiful sky"
         prompts = prompts.split(" / ")
         for input_prompt in prompts:
             self.vq.generate("/imagenet", input_prompt)
@@ -25,8 +25,11 @@ class CmdHandle:
 
         self.vq.save_video(video_name="vid_interp_out")
 
-    def test_image_prompts(self, max_iter=20):
-        target_image_file = "tdout_noise.jpg"
+    def test_image_prompts(
+        self, 
+        max_iter=100,
+        target_image_file = "tdout_noise.jpg"):
+        
         print(f" [DEBUG] Using {target_image_file} as target image")
 
         for i in range(max_iter):
