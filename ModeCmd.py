@@ -23,9 +23,7 @@ class CmdHandle:
             self.vq.generate("/imagenet", input_prompt)
         
 
-        self.vq.save_video(
-            video_name="vid_interp_out",
-            ramdisk=True)
+        self.vq.save_video(video_name="vid_interp_out")
 
     def test_image_prompts(self, max_iter=20):
         target_image_file = "tdout_noise.jpg"
@@ -38,7 +36,5 @@ class CmdHandle:
                 ramdisk=True)
                 
 
-        self.vq.save_video(
-            video_name="vid_interp_out",
-            ramdisk=True)
+        self.vq.save_video(video_name="vid_interp_out")
 
