@@ -1,5 +1,5 @@
 import sys, os
-
+import ClassStyleClip
 
 # -------------------------------------
 # -> ROOT_DIR should be on realtime-gan
@@ -81,6 +81,7 @@ def main():
 
 if __name__ == "__main__":
     try:
+        #ClassStyleClip.test_run()
         main()
     except Exception:
         traceback.print_exc()

@@ -3,6 +3,8 @@
 # Crowson (https://github.com/crowsonkb
 import os
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
+
+
 # Imports
 import cv2
 from CLIP import clip

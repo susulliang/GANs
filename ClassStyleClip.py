@@ -1,6 +1,7 @@
+# -------------------------------------
 # StyleCLIPDraw
 # originally from Peter Schaldenbrand, Zhixuan Liu, Jean Oh September 2021
-
+# -------------------------------------
 # StyleCLIPDraw adds a style loss to the CLIPDraw (Frans et al. 2021) (code)
 # text-to-drawing synthesis model to allow artistic control of the synthesized
 # drawings in addition to control of the content via text. Whereas performing
@@ -8,9 +9,17 @@
 # our proposed coupled approach is able to capture a style in both texture
 # and shape, suggesting that the style of the drawing is coupled with the
 # drawing process itself.
-
+# -------------------------------------
 from torchvision import utils
-import os
+import os, sys
+# -------------------------------------
+# -> ROOT_DIR should be on realtime-gan
+# -------------------------------------
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
+print(f'Launching from {ROOT_DIR}')
+sys.path.insert(0,f'{ROOT_DIR}/srcnn_models')
+sys.path.insert(0,f'{ROOT_DIR}/taming_transformers')
+
 import io
 import PIL.Image
 import PIL.ImageDraw
@@ -22,17 +31,20 @@ import numpy as np
 import matplotlib.pylab as pl
 import glob
 import copy
+from BColors import BColors
 from tqdm import tqdm
 
 import os
-import CLIP as clip
+from CLIP import clip
 import torch
 import torch.nn.functional as F
 import torchvision
 from torchvision import transforms
 from torchvision.datasets import CIFAR100
+import pyvirtualcam
 
-import diffvg
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+import pydiffvg
 import skimage
 import skimage.io
 import random
@@ -58,7 +70,8 @@ os.environ['FFMPEG_BINARY'] = 'ffmpeg'
 
 #import moviepy.editor as mvp
 #from moviepy.video.io.ffmpeg_writer import FFMPEG_VideoWriter
-
+def log(msg, color = BColors.HEADER):
+    print(f' {color}{msg}{BColors.ENDC}')
 
 def imread(url, max_size=None, mode=None):
     if url.startswith(('http:', 'https:')):
@@ -106,8 +119,21 @@ def im2url(a, fmt='jpeg'):
     return 'data:image/' + fmt.upper() + ';base64,' + base64_byte_string
 
 
+def cam_init():
+    return pyvirtualcam.Camera(
+        width = 224, 
+        height = 224, 
+        fps = 30)
+
+cam = cam_init()
+
+def display(img):
+    cam.send((img))
+    cam.sleep_until_next_frame()
+
+
 def imshow(a, fmt='jpeg'):
-    display(Image(data=imencode(a, fmt)))
+    display(Image(a))
 
 
 def tile2d(a, w=None):
@@ -130,7 +156,8 @@ def show_img(img):
     # img = np.repeat(img, 4, axis=0)
     # img = np.repeat(img, 4, axis=1)
     pimg = PIL.Image.fromarray(img, mode="RGB")
-    imshow(pimg)
+    display(img)
+    #imshow(pimg)
 
 
 def zoom(img, scale=4):
@@ -148,7 +175,7 @@ class VideoWriter:
         img = np.asarray(img)
         if self.writer is None:
             h, w = img.shape[:2]
-            self.writer = FFMPEG_VideoWriter(size=(w, h), **self.params)
+            #self.writer = FFMPEG_VideoWriter(size=(w, h), **self.params)
         if img.dtype in [np.float32, np.float64]:
             img = np.uint8(img.clip(0, 1)*255)
         if len(img.shape) == 2:
@@ -170,7 +197,7 @@ class VideoWriter:
     def show(self, **kw):
         self.close()
         fn = self.params['filename']
-        display(mvp.ipython_display(fn, **kw))
+        #display(mvp.ipython_display(fn, **kw))
 
 
 def pil_resize_long_edge_to(pil, trg_size):
@@ -300,7 +327,7 @@ def tensor_to_np(tensor, cut_dim_to_3=True):
 def np_to_tensor(npy, space):
     if space == 'vgg':
         return np_to_tensor_correct(npy)
-    return (torch.Tensor(npy.astype(np.float) / 127.5) - 1.0).permute((2, 0, 1)).unsqueeze(0)
+    return (torch.Tensor(npy.astype(float) / 127.5) - 1.0).permute((2, 0, 1)).unsqueeze(0)
 
 
 def np_to_tensor_correct(npy):
@@ -604,18 +631,23 @@ def initialize_curves(num_paths, canvas_width, canvas_height):
 
 def render_drawing(shapes, shape_groups,
                    canvas_width, canvas_height, n_iter, save=False):
+    log(f'render {n_iter}')
     scene_args = pydiffvg.RenderFunction.serialize_scene(
         canvas_width, canvas_height, shapes, shape_groups)
+
     render = pydiffvg.RenderFunction.apply
     img = render(canvas_width, canvas_height, 2, 2, n_iter, None, *scene_args)
+    
     img = img[:, :, 3:4] * img[:, :, :3] + torch.ones(
         img.shape[0], img.shape[1], 3, device=pydiffvg.get_device()) * (1 - img[:, :, 3:4])
+
     if save:
         pydiffvg.imwrite(
             img.cpu(), '/content/res/iter_{}.png'.format(int(n_iter)), gamma=1.0)
     img = img[:, :, :3]
     img = img.unsqueeze(0)
     img = img.permute(0, 3, 1, 2)  # NHWC -> NCHW
+
     return img
 
 
@@ -636,7 +668,7 @@ def render_scaled(shapes, shape_groups, original_height, original_width,
         return img
 
 
-# @title style_clip_draw() Definition
+# ==@title style_clip_draw() Definition
 
 def style_clip_draw(prompt, style_path,
                     num_paths=256, num_iter=1000, max_width=50,
@@ -709,8 +741,7 @@ def style_clip_draw(prompt, style_path,
     width_optim_style = torch.optim.RMSprop(stroke_width_vars, lr=0.1)
     color_optim_style = torch.optim.RMSprop(color_vars, lr=0.01)
 
-    style_pil = pil_loader(style_path) if os.path.exists(
-        style_path) else pil_loader_internet(style_path)
+    style_pil = pil_loader(style_path)
     style_pil = pil_resize_long_edge_to(style_pil, canvas_width)
     style_np = pil_to_np(style_pil)
     style = (np_to_tensor(style_np, "normal").to(device)+1)/2
@@ -726,7 +757,8 @@ def style_clip_draw(prompt, style_path,
                 (feat_style, feat_e), dim=2)
 
     # Run the main optimization loop
-    for t in range(num_iter) if debug else tqdm(range(num_iter)):
+    for t in range(num_iter):
+        log(f'LOOP {t}', BColors.FAIL)
 
         # Anneal learning rate (makes videos look cleaner)
         if t == int(num_iter * 0.5):
@@ -758,47 +790,52 @@ def style_clip_draw(prompt, style_path,
             if neg_prompt_2 is not None:
                 loss += torch.cosine_similarity(text_features_neg2,
                                                 image_features[n:n+1], dim=1) * 0.3
-
+        log(f'backw ...')
         loss.backward()
         points_optim.step()
         width_optim.step()
         color_optim.step()
-
+        log(f'O ....')
         # Do style optimization from time to time and on the last iteration
         if t % style_opt_freq == 0 or (t == num_iter-1):
+            log(f'  style opt .')
             img = render_drawing(shapes, shape_groups,
                                  canvas_width, canvas_height, t)
+            show_img(img.detach().cpu().numpy()[0])
             feat_content = extractor(img)
-
+            #log(f'  style opt ..')
             # 0 to sample over first layer extracted
             xx, xy = sample_indices(feat_content[0], feat_style)
             for it in range(style_opt_iter):
+                log(f'       it opt .')
                 styleloss = 0
                 points_optim_style.zero_grad()
                 width_optim_style.zero_grad()
                 color_optim_style.zero_grad()
-
+                log(f'       it opt ?')
                 img = render_drawing(shapes, shape_groups,
                                      canvas_width, canvas_height, t)
+                log(f'       it opt ??')                     
                 feat_content = extractor(img)
-
+                log(f'       it opt ..')
                 if it % 1 == 0 and it != 0:
                     np.random.shuffle(xx)
                     np.random.shuffle(xy)
 
                 styleloss = calculate_loss(
                     feat_content, feat_content, feat_style, [xx, xy], 0)
-
+                log(f'       it opt ...')
                 styleloss.backward()
                 points_optim_style.step()
                 width_optim_style.step()
                 color_optim_style.step()
-
+            log(f'  style opt |')
+        log(f'step .....')
         for path in shapes:
             path.stroke_width.data.clamp_(1.0, max_width)
         for group in shape_groups:
             group.stroke_color.data.clamp_(0.0, 1.0)
-
+        log(f'step ......')
         if t % 50 == 0 and debug:
             img = render_scaled(shapes, shape_groups,
                                 canvas_width, canvas_height, t=t)
@@ -816,16 +853,16 @@ def style_clip_draw(prompt, style_path,
                 print("\nTop predictions:\n")
                 for value, index in zip(values, indices):
                     print(f"{nouns[index]:>16s}: {100 * value.item():.2f}%")
+        log(f'step ........|')
     return render_scaled(shapes, shape_groups, canvas_width, canvas_height, t=t).detach().cpu().numpy()[0]
 
-
+#def test_run():
 device = torch.device('cuda')
+pydiffvg.set_print_timing(False)
 
-
-diffvg.set_print_timing(False)
 # Use GPU if available
-diffvg.set_use_gpu(torch.cuda.is_available())
-diffvg.set_device(device)
+pydiffvg.set_use_gpu(torch.cuda.is_available())
+pydiffvg.set_device(device)
 
 # Load the model
 model, preprocess = clip.load('ViT-B/32', device, jit=False)
@@ -838,3 +875,11 @@ noun_prompts = ["a drawing of a " + x for x in nouns]
 with torch.no_grad():
     nouns_features = model.encode_text(
         torch.cat([clip.tokenize(noun_prompts).to(device)]))
+
+
+img = style_clip_draw('circles and coca cola', './images/dezzy.JPG',\
+                          num_iter=200, style_opt_freq=1, style_opt_iter=20, debug=True)
+
+
+show_img(img)
+#test_run()
