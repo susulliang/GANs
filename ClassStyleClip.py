@@ -32,7 +32,7 @@ import torchvision
 from torchvision import transforms
 from torchvision.datasets import CIFAR100
 
-import pydiffvg
+import diffvg
 import skimage
 import skimage.io
 import random
@@ -822,10 +822,10 @@ def style_clip_draw(prompt, style_path,
 device = torch.device('cuda')
 
 
-pydiffvg.set_print_timing(False)
+diffvg.set_print_timing(False)
 # Use GPU if available
-pydiffvg.set_use_gpu(torch.cuda.is_available())
-pydiffvg.set_device(device)
+diffvg.set_use_gpu(torch.cuda.is_available())
+diffvg.set_device(device)
 
 # Load the model
 model, preprocess = clip.load('ViT-B/32', device, jit=False)
