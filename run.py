@@ -7,7 +7,7 @@ import sys, os
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
 print(f'Launching from {ROOT_DIR}')
 sys.path.insert(0,f'{ROOT_DIR}/srcnn_models')
-sys.path.insert(0,f'{ROOT_DIR}/taming_transformers')
+
 
 from argparse import Namespace
 from BColors import BColors

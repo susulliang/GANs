@@ -4,10 +4,6 @@
 *.ckpt
 *.mp4
 
-pickle_models
-pickle_models_1
-
-SRCNN/
 
 .vscode/
 backupsrcnn/
@@ -17,4 +13,3 @@ pickles/pickle_models_drin_transformer
 pickles/pickle_models_faceshq
 pickles/pickle_models_vqgan_imagenet_f16_16384
 pickles/pickle_models_wikiart_16384
-mic_command.py

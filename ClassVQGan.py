@@ -1,8 +1,9 @@
 # Base VQGAN CLIP functions and helpers
 # The VQGAN+CLIP (z+quantize method) notebook this was based on is by Katherine
 # Crowson (https://github.com/crowsonkb
-import os
+import os, sys
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
+sys.path.insert(1, f'{ROOT_DIR}/taming-transformers')
 
 
 # Imports
@@ -29,7 +30,7 @@ import time
 import argparse
 import pickle
 import pyvirtualcam
-from taming_transformers import taming
+import taming
 
 import sys, random
 

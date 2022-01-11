@@ -45,7 +45,7 @@ class CmdHandle:
 
         self.vq.save_video(video_name="vid_interp_out")
 
-    def use_mic_inputs(self):
+    def use_mic_inputs(self, safe_word="apple"):
         # Initialize recognizer class (for recognizing the speech)
         r = sr.Recognizer()
 
@@ -67,13 +67,14 @@ class CmdHandle:
                     print(speech)
                     print(speech_g)
 
+                    if safe_word in speech_g.split():
+                        self.vq.save_video(video_name="vid_micapple")
+                        exit()
+                        
                     self.vq.generate("/imagenet", speech_g)
                     
 
-                    if "apple" in speech_g.split():
-                        print("don't say apple")
-                        self.vq.save_video(video_name="vid_micapple")
-                        exit()
+
 
             except Exception as e:
                 traceback.print_exc()
