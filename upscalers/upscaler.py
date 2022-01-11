@@ -15,6 +15,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 
+import model
+
 
 class Upscaler:
     def __init__(self, cuda_on=False, factor=3) -> None:
@@ -25,7 +27,7 @@ class Upscaler:
             torch.cuda.is_available() and cuda_on) else "cpu")
 
         self.torch_model = torch.load(
-            f"srcnn_models/model_{factor}x.pth").to(self.device)
+            f"upscalers/model_{factor}x.pth").to(self.device)
 
     def up(self, img):
         start = time.time()

@@ -25,12 +25,13 @@ from BColors import BColors
 from pathlib import Path
 
 import math
-import ClassSRCnn
+
 import time
 import argparse
 import pickle
 import pyvirtualcam
 import taming
+from upscalers.upscaler import Upscaler
 
 import sys, random
 
@@ -62,7 +63,7 @@ class VQGanClip:
         self.map_y = np.zeros((args.ancho, args.alto), dtype=np.float32)
 
         self.cam_init()
-        self.res_scaler = ClassSRCnn.Upscaler(cuda_on = True, factor = args.superres_factor)
+        self.res_scaler = Upscaler(cuda_on = True, factor = args.superres_factor)
         
         print(f" {BColors.OKGREEN}[SRCNN] Image SuperRes device: {self.res_scaler.device}{BColors.ENDC}")
         self.img_latest = 0

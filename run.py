@@ -1,22 +1,25 @@
-import sys, os
-#import ClassStyleClip
+import sys, os, traceback
 
 # -------------------------------------
 # -> ROOT_DIR should be on realtime-gan
 # -------------------------------------
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
 print(f'Launching from {ROOT_DIR}')
-sys.path.insert(0,f'{ROOT_DIR}/srcnn_models')
+sys.path.insert(0,f'{ROOT_DIR}/upscalers')
+# -------------------------------------
+
+
+
+
 
 
 from argparse import Namespace
 from BColors import BColors
 
-import ClassVQGan
-import traceback
+import gan_VQGanClip
 
-from ModeOSC import OSCHandle
-from ModeCmd import CmdHandle
+from handle_osc import OSCHandle
+from handle_cmd import CmdHandle
 
 
 import torch
@@ -66,7 +69,7 @@ def main():
         video_interp_frames=9)
 
     # Global variables for storing networks, models and tensors
-    vq = ClassVQGan.VQGanClip(args=vq_args)
+    vq = gan_VQGanClip.VQGanClip(args=vq_args)
 
     # -> Automated Command Prompt Mode
     handle = CmdHandle(vq_ref=vq)
