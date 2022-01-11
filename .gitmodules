@@ -4,3 +4,6 @@
 [submodule "CLIP"]
 	path = CLIP
 	url = https://github.com/openai/CLIP
+[submodule "gpt-neo"]
+	path = gpt-neo
+	url = https://github.com/EleutherAI/gpt-neo/
