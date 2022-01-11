@@ -8,10 +8,6 @@ pickle_models
 pickle_models_1
 
 SRCNN/
-CLIP/
-VQGAN-CLIP/
-taming/
-taming-transformers/
 
 .vscode/
 backupsrcnn/
