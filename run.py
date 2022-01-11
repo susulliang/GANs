@@ -33,7 +33,7 @@ def main():
                             "drin_transformer",
                             "cin_transformer")
     
-    tracking_img = "tdout_noise.jpg"
+    tracking_img = "tdout_cam.jpg"
 
     # --------------------                        
     # -> Run Parameters
@@ -47,11 +47,11 @@ def main():
         ancho=256,
         alto=256,
         video_fps=60,
-        superres_factor=4,
-        step_size=0.2,
+        superres_factor=3,
+        step_size=0.15,
         init_image=tracking_img,  
         init_weight=0.05,
-        max_iteraciones=10,  # @param {type:"number"}
+        max_iteraciones=60,  # @param {type:"number"}
         seed=5,  # @param {type:"number"}
         prompts=[],
         image_prompts="",
@@ -70,12 +70,15 @@ def main():
 
     # -> Automated Command Prompt Mode
     handle = CmdHandle(vq_ref=vq)
-    handle.test_image_prompts(target_image_file="tdout_noise.jpg")
+    handle.use_mic_inputs()
+
+    handle.test_image_prompts(target_image_file="tdout_noise.jpg", max_iter =50)
 
 
     # -> OSC Mode
     handle = OSCHandle(vq_ref=vq)
-    # handle.start_listening()
+    handle.start_listening()
+    
     print(f' {BColors.OKGREEN}[STATUS] Command completed, graceful byebye! {BColors.ENDC} \n')
 
 
