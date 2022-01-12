@@ -52,10 +52,10 @@ def main():
         alto=256,
         video_fps=60,
         superres_factor=3,
-        step_size=0.15,
+        step_size=0.5,
         init_image=tracking_img,  
         init_weight=0.05,
-        max_iteraciones=60,  # @param {type:"number"}
+        max_iteraciones=50,  # @param {type:"number"}
         seed=5,  # @param {type:"number"}
         prompts=[],
         image_prompts="",
@@ -74,7 +74,12 @@ def main():
 
     # -> Automated Command Prompt Mode
     handle = CmdHandle(vq_ref=vq)
-    handle.use_mic_inputs()
+    #handle.test_prompts()
+    
+
+    # -> Use microphone mode
+    handle.use_mic_inputs(safe_word="apple", language="ru")
+    return
 
     handle.test_image_prompts(target_image_file="tdout_noise.jpg", max_iter =50)
 
