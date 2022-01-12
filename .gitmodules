@@ -7,3 +7,6 @@
 [submodule "gpt-neo"]
 	path = gpt-neo
 	url = https://github.com/EleutherAI/gpt-neo/
+[submodule "TAMING-TRANSFORMERS"]
+	path = taming-transformers
+	url = https://github.com/CompVis/taming-transformers
