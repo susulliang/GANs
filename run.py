@@ -34,14 +34,15 @@ def main():
                             "wikiart_16384",
                             "coco",
                             "drin_transformer",
-                            "cin_transformer")
+                            "cin_transformer",
+                            "sflckr")
     
     tracking_img = "tdout_cam.jpg"
 
     # --------------------                        
     # -> Run Parameters
     # --------------------    
-    vq_args = Namespace(model_names=["vqgan_imagenet_f16_16384"],
+    vq_args = Namespace(model_names=["wikiart_16384"],
         model_names_full=model_names_full,
         load_from_pickle=True,
         current_model_index=0,
