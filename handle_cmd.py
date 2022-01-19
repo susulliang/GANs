@@ -26,7 +26,7 @@ class CmdHandle:
         lines = txt_file.readlines()
 
         # Strips the newline character
-        for line in lines:
+        for line in lines[:3]:
             parse = line.strip().split('.')
             self.vq.generate("/imagenet", parse[1])
 

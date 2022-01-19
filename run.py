@@ -48,37 +48,37 @@ def main():
         current_model_index=0,
         textos="",
         channel="",
-        ancho=256,
-        alto=256,
+        ancho=384,
+        alto=384,
         video_fps=60,
         superres_factor=3,
         step_size=0.5,
         init_image=tracking_img,  
         init_weight=0.05,
-        max_iteraciones=50,  # @param {type:"number"}
+        max_iteraciones=20,  # @param {type:"number"}
         seed=5,  # @param {type:"number"}
         prompts=[],
         image_prompts="",
         size="(256, 256)",
         clip_model='ViT-B/32',
-        cutn=12,
+        cutn=16,
         cut_pow=1.,
         display_freq=1,
         device=my_device,
         ramdisk="R:/",
         video_name="default_mov_out",
-        video_interp_frames=9)
+        video_interp_frames=4)
 
     # Global variables for storing networks, models and tensors
     vq = gan_VQGanClip.VQGanClip(args=vq_args)
 
     # -> Automated Command Prompt Mode
     handle = CmdHandle(vq_ref=vq)
-    #handle.test_prompts()
+    handle.test_prompts()
     
 
     # -> Use microphone mode
-    handle.use_mic_inputs(safe_word="apple", language="ru")
+    #handle.use_mic_inputs(safe_word="apple", language="ru")
     return
 
     handle.test_image_prompts(target_image_file="tdout_noise.jpg", max_iter =50)

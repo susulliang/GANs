@@ -296,7 +296,7 @@ class VQGanClip:
                 img = resize_image(
                     Image.open(path).convert('RGB'), (sideX, sideY))
             except Exception:
-                img = self.img_latest.clone()
+                img = self.img_latest.copy()
                 print(f" {BColors.FAIL}[READ] Corrupted image input. Skipping frame. {BColors.ENDC}")
                 return
 
@@ -314,7 +314,7 @@ class VQGanClip:
 
         time_measure = round((time.time()-start), 2)
         fps = round((1 / time_measure * args.max_iteraciones), 2)
-        print(f" \n {BColors.OKGREEN}[METRIC] Execution time {time_measure} s, fps {fps}, upres_time {self.res_scaler.last_metric}s {BColors.ENDC}", end="\r")
+        print(f" \n {BColors.OKGREEN}[METRIC] Execution time {time_measure} s, fps {fps}, upres_time {self.res_scaler.last_metric}s {BColors.ENDC}")
 
 
     # Video
