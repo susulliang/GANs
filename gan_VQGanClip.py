@@ -51,9 +51,14 @@ class VQGanClip:
     frames = []
     frames_supeResed = []
 
+    standby_last_index = 1
+
     first_run = True
     i = 0
-    
+    cam_last_frame = -1
+    lastest_frame_push = False
+    lastest_frame = None
+
     print(torch.cuda.get_device_capability())
 
     def __init__(self, args):
@@ -207,9 +212,13 @@ class VQGanClip:
 
         img_nx = np.uint8((self.res_scaler.up(img)))
         self.frames_supeResed.append(img_nx)
+        self.lastest_frame_push = True
+        self.lastest_frame = np.copy(img_nx)
 
-        self.cam.send(img_nx)
-        self.cam.sleep_until_next_frame()
+        # Maintain buffer frames
+        buffer_frames = 10
+        if len(self.frames_supeResed) > buffer_frames:
+            self.frames_supeResed.pop(0)
 
         return result
 
@@ -252,12 +261,67 @@ class VQGanClip:
             embed, args.init_weight, float('-inf')).to(args.device))
 
 
+
+
+
+    def interp_cam_step(self, buffer_range=5):
+        # interpolate from previous frame to newest frame
+        if len(self.frames_supeResed) >= buffer_range:
+            if self.first_run:
+                self.last_output_frame = np.copy(self.frames_supeResed[-2])
+                self.first_run = False
+
+            # select a new target frame but not previous one
+            choices = [i for i in range(1, buffer_range)]
+            choices.remove(self.standby_last_index)
+            i_rand = random.choice(choices)
+            self.standby_last_index = i_rand
+
+            if self.lastest_frame_push:
+                newest_frame_snapshot = np.copy(self.lastest_frame)
+                self.interp_out(
+                    prev_frame=np.copy(self.last_output_frame), 
+                    newest_frame=newest_frame_snapshot)
+                self.last_output_frame = newest_frame_snapshot
+                self.lastest_frame_push = False
+            else:
+                newest_frame_snapshot = np.copy(self.frames_supeResed[-i_rand])
+                self.interp_out(
+                    prev_frame=np.copy(self.last_output_frame), 
+                    newest_frame=newest_frame_snapshot)
+                self.last_output_frame = newest_frame_snapshot
+
+
+
+    def interp_out(self, prev_frame, newest_frame, interp_framerate=15):
+        # Output interpolated / smoothed frames between newest frame and previous frame
+        wait_sync = 1 / interp_framerate
+        interp_frame = np.copy(prev_frame)
+        interp_step = 1 / (interp_framerate)
+        
+
+        for interp_index in range(interp_framerate):
+            
+            sync_start = time.time()
+            weight = interp_step * interp_index
+            cv2.addWeighted(
+                prev_frame, 1 - weight,
+                newest_frame, weight, 0.0,
+                dst=interp_frame)
+
+            self.cam.send(np.uint8(interp_frame))
+            self.cam.sleep_until_next_frame()
+            time.sleep(wait_sync - (time.time() - sync_start))
+        
+
+
     def generate(
             self,
             channel,
             input_prompt="",
             target_image="",
-            ramdisk=False):
+            ramdisk=False,
+            optimize_steps=-1):
 
         start = time.time()
         args = self.args
@@ -308,9 +372,15 @@ class VQGanClip:
                 embed, weight, stop).to(args.device))
 
 
-        print(f'\n')
-        for iter in range(args.max_iteraciones):
+        #print(f'\n')
+        # sync training step to seconds
+        if optimize_steps == -1:
+            optimize_steps = args.max_iteraciones
+
+        for _ in range(optimize_steps):
+            sync_start = time.time()
             self.train()
+            time.sleep(1 - (time.time() % 1))
 
         time_measure = round((time.time()-start), 2)
         fps = round((1 / time_measure * args.max_iteraciones), 2)

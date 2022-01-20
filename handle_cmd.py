@@ -1,11 +1,22 @@
+import cmd, random
+from pickletools import optimize
+from queue import Empty
+from numpy import empty
 import speech_recognition as sr
 from googletrans import Translator, constants
+import time
 import traceback
+import _thread
+from BColors import BColors
 
 class CmdHandle:
     # -> Command Line Handler 
     def __init__(self, vq_ref) -> None:
         self.vq = vq_ref
+        self.newest_prompt = ""
+        self.mode = "standby"
+        self.user_last_active = 0
+        self.active_timeout = 10
         pass
 
     def start_looping(self):
@@ -18,30 +29,122 @@ class CmdHandle:
         input_prompt = input_prompt.strip()
         return "/wikiart", input_prompt
 
-    def test_prompts(self):
-        print(" [DEBUG] Using default test prompt sequence")
+    def global_refresh(self, delay):
+        print(
+            f' {BColors.OKBLUE}[CANVAS] Ouput Framerate is set to {delay} FPS {BColors.ENDC}')
+        c = 0
+        while c < 500:
+            sync_start = time.time()
+            self.vq.interp_cam_step()
+            # -> Force sync
+            if delay - (time.time() - sync_start) > 0:
+                time.sleep(delay - (time.time() - sync_start))
+            
+            
 
+    def get_prompt(self):
+        # -> Get user prompt from terminal
+        while True:
+            try:
+                self.newest_prompt = input().strip()
+            except Exception:
+                self.newest_prompt = ""
+
+
+    def exhibition(self, framerate=1):
+        print(f' {BColors.OKBLUE}[MODE] Exhibition Mode {BColors.ENDC}')
+
+        # -> Global Output Framerate Lock
+        _thread.start_new_thread(self.get_prompt, ())
+        _thread.start_new_thread(self.global_refresh, (1,))
+
+        c = 0
+        while True:
+            # -> Global Loop
+            if self.newest_prompt == "exit":
+                exit()
+
+            if self.newest_prompt != "" and self.mode == "standby":
+                # -> Active Prompt Mode
+                self.user_last_active = c
+                _thread.start_new_thread(self.process_prompt, (self.newest_prompt,))
+                self.newest_prompt = ""
+                #self.vq.refresh_cam()
+
+            elif self.mode == "standby":
+                # -> Stanby Mode, trigger random generations
+                if c - self.user_last_active > self.active_timeout:
+                    print(f' {BColors.HEADER}[STATUS] Gathering ideas... {BColors.ENDC}', end='\r')
+                    rand_choice_prob = random.randint(1, 100)
+                    if rand_choice_prob < 5:
+                        print(f' {BColors.HEADER}[STATUS] idea gathered from list of painting names {BColors.ENDC}')
+                        _thread.start_new_thread(self.test_random_prompt, ())
+                    elif rand_choice_prob > 90:
+                        print(f' {BColors.HEADER}[STATUS] idea gathered from camera input {BColors.ENDC}')
+                        _thread.start_new_thread(self.test_cam_input, ())
+                pass
+                
+                #_thread.start_new_thread(self.standby, ())
+            # --------------
+            c += 1
+            
+            time.sleep(1)
+
+
+    def process_prompt(self, prompt):
+        self.mode = "generating"
+        self.vq.generate("/wikiart", prompt)
+        self.mode = "standby"
+
+    def test_random_prompt(self):
+        self.mode = "generating"
         # Read prompts from local samples
         txt_file = open('prompts.txt', 'r')
         lines = txt_file.readlines()
+        txt_file.close()
 
         # Strips the newline character
-        for line in lines[:3]:
-            parse = line.strip().split('.')
-            self.vq.generate("/imagenet", parse[1])
+        random_line = random.choice(lines)
+        parse = random_line.strip().split('.')
+
+        self.vq.generate("/imagenet", parse[1], optimize_steps=random.randint(10,50))
+
+        self.mode = "standby"
+
+    def test_cam_input(self):
+        self.mode = "generating"
+
+        for _ in range(random.randint(1,10)):
+            self.vq.generate(
+                    channel="/wikiart",
+                    target_image="tdout_noise.jpg",
+                    ramdisk=True,
+                    optimize_steps=random.randint(2,5))
+
+        self.mode = "standby"
+
+    def test_prompts(self, delay=1):
+        print(" [DEBUG] Using default test prompt sequence")
+
 
 
         self.vq.save_video(video_name="vid_interp_out")
 
-    def test_cmd_inputs(self):
+
+    def test_cmd_inputs(self, delay=1):
         print(" [DEBUG] Using default test prompt sequence")
         prompts = "cube / spiral / ocean and beach / night and moon / dark sky and moon / green and orange colors / broccoli and vegetable"
         prompts = "wassily kandinsky style landscapes / wassily kandinsky style cubes / beautiful sky"
-        prompts = prompts.split(" / ")
-        for input_prompt in prompts:
-            self.vq.generate("/imagenet", input_prompt)
         
+        
+        # Global Output Framerate Lock
+        _thread.start_new_thread(self.global_clock, (delay,))
 
+        cmd_input = "a beautiful dinner party with lots of apples"
+        while cmd_input != "":
+            self.vq.generate("/imagenet", cmd_input)
+            cmd_input = input(f' {BColors.HEADER} Give me some ideas: {BColors.ENDC}').strip()
+        
         self.vq.save_video(video_name="vid_interp_out")
 
     def test_image_prompts(
