@@ -238,7 +238,7 @@ class VQGanClip:
             self.z.copy_(self.z.maximum(self.z_min).minimum(self.z_max))
 
 
-    def refresh_z(self, style_transfer=""):
+    def refresh_z(self, style_transfer="", icon_burn=""):
         args = self.args
         self.pMs = []
         if self.i > 0:
@@ -250,8 +250,16 @@ class VQGanClip:
                 f"R:/{style_transfer}").convert('RGB')
             pil_image = pil_image.resize(
                 (args.ancho, args.alto), Image.LANCZOS)
-            #print(pil_image, self.img_latest)
-            self.img_latest = Image.blend(self.img_latest, pil_image, alpha=random.uniform(0.1, 0.6))
+
+            self.img_latest = Image.blend(self.img_latest, pil_image, alpha=random.uniform(0.1, 0.4))
+
+        if icon_burn:
+            icon_img = Image.open(
+                f"{icon_burn}").convert('RGB')
+            icon_img = icon_img.resize(
+                (args.ancho, args.alto), Image.LANCZOS)
+            print(icon_burn)
+            self.img_latest = Image.blend(self.img_latest, icon_img, alpha=random.uniform(0.1, 0.3))
 
         # Load new init image for next round
         self.z, *_ = self.model.encode(TF.to_tensor(
@@ -333,7 +341,8 @@ class VQGanClip:
             optimize_steps=-1,
             style_transfer="",
             target_weight=1,
-            step_size=0):
+            step_size=0,
+            icon_burn=""):
 
         start = time.time()
         args = self.args
@@ -346,7 +355,7 @@ class VQGanClip:
         else:
             args.step_size = 0.2 # standby step size
 
-        self.refresh_z(style_transfer=style_transfer)
+        self.refresh_z(style_transfer=style_transfer, icon_burn=icon_burn)
 
 
         # Text Prompt

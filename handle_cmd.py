@@ -96,6 +96,11 @@ class CmdHandle:
                         # -> 10% Get Local Image Prompt
                         print(f' {BColors.HEADER}[STATUS] idea gathered from local images {BColors.ENDC}')
                         _thread.start_new_thread(self.test_image_input, ())
+                    
+                    elif rand_choice_prob < 90: 
+                        # -> 10% Get ICON
+                        print(f' {BColors.HEADER}[STATUS] idea gathered from local images {BColors.ENDC}')
+                        _thread.start_new_thread(self.test_icon_styletransfer, ())
                 else:
                     # -> Stanby Mode, with user attention
                     rand_choice_prob = random.randint(1, 100)
@@ -146,6 +151,20 @@ class CmdHandle:
             step_size=0.4,
             ramdisk=False,
             optimize_steps=random.randint(5,20))
+
+        self.mode = "standby"
+
+    def test_icon_styletransfer(self, transfer_iterations=5):
+        self.mode = "generating"
+
+        # -> Randomly load styles from predefined styles
+        for _ in range(transfer_iterations):
+            self.vq.generate(
+                channel="/wikiart",
+                icon_burn=random.choice(glob.glob("icons/*")),
+                input_prompt=random.choice(self.styles),
+                ramdisk=False,
+                optimize_steps=2)
 
         self.mode = "standby"
 
