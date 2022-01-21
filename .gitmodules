@@ -10,3 +10,6 @@
 [submodule "TAMING-TRANSFORMERS"]
 	path = taming-transformers
 	url = https://github.com/CompVis/taming-transformers
+[submodule "icon-image"]
+	path = icon-image
+	url = https://github.com/minimaxir/icon-image
