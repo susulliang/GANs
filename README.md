@@ -1,5 +1,5 @@
 # GANs
-realtime VQGAN + CLIP + etc.
+realtime & interactive VQGAN + CLIP + etc live visual synthesis.
 work in progress.
 
 # Exhibition Installation
@@ -15,7 +15,7 @@ work in progress.
 
 ## How to interact
 ```
-python run.py
+python exhibition.py
 ```
 once the exhibition mode is running, it will enter loop synced at each second.
 Type anything in the console to enter user commmand mode
@@ -49,4 +49,17 @@ styles = ["fish eye view", "dreaming", "Kandinsy", "Cubist", "Abstract",
              "cartoon", "watercolor", "pixel", "pixelated", "simple", "pointillism", "acrylic", 
              "Ghost in the Shell style", "Death Stranding style", "gouache", "vignetting",
              "Dark and clean background", "small and center", "geometric", "linear", "Junji Ito style"]
+```
+
+# Citations
+
+```
+@misc{esser2020taming,
+      title={Taming Transformers for High-Resolution Image Synthesis}, 
+      author={Patrick Esser and Robin Rombach and Björn Ommer},
+      year={2020},
+      eprint={2012.09841},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
 ```
