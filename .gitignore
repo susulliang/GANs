@@ -16,3 +16,5 @@ pickles/pickle_models_drin_transformer
 pickles/pickle_models_faceshq
 pickles/pickle_models_vqgan_imagenet_f16_16384
 pickles/pickle_models_wikiart_16384
+icon-image
+taming-transformers
