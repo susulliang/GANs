@@ -182,7 +182,7 @@ class VQGanClip:
     # @torch.inference_mode()
     def checkin(self, i, losses):
         losses_str = ', '.join(f'{loss.item():g}' for loss in losses)
-        print(f' {BColors.WARNING}[VQGAN] step: {i}/{self.args.max_iteraciones * ((i-1)//self.args.max_iteraciones + 1)}, loss: {sum(losses).item():g}, losses: {losses_str} {BColors.ENDC}', end="\r")
+        print(f' {BColors.WARNING}[VQGAN]  step: {i}/{self.args.max_iteraciones * ((i-1)//self.args.max_iteraciones + 1)}, loss: {sum(losses).item():g}, losses: {losses_str} {BColors.ENDC}', end="\r")
         #out = self.synth()
 
     def ascend_txt(self):
@@ -203,7 +203,7 @@ class VQGanClip:
         ).detach().numpy().astype(np.uint8))[:, :, :]
         img = np.transpose(img, (1, 2, 0))
         
-        self.img_latest = img
+        self.img_latest = Image.fromarray(img)
         self.frames.append(img)
 
         # =============================================
@@ -238,12 +238,21 @@ class VQGanClip:
             self.z.copy_(self.z.maximum(self.z_min).minimum(self.z_max))
 
 
-    def refresh_z(self):
+    def refresh_z(self, style_transfer=""):
         args = self.args
         self.pMs = []
         if self.i > 0:
             self.prompts = [] 
         
+        #  <- FORCE INJECT STYLE from image
+        if style_transfer:
+            pil_image = Image.open(
+                f"R:/{style_transfer}").convert('RGB')
+            pil_image = pil_image.resize(
+                (args.ancho, args.alto), Image.LANCZOS)
+            #print(pil_image, self.img_latest)
+            self.img_latest = Image.blend(self.img_latest, pil_image, alpha=.25)
+
         # Load new init image for next round
         self.z, *_ = self.model.encode(TF.to_tensor(
             self.img_latest).to(args.device).unsqueeze(0) * 2 - 1)
@@ -264,7 +273,7 @@ class VQGanClip:
 
 
 
-    def interp_cam_step(self, buffer_range=5):
+    def interp_cam_step(self, buffer_range=3):
         # interpolate from previous frame to newest frame
         if len(self.frames_supeResed) >= buffer_range:
             if self.first_run:
@@ -321,18 +330,31 @@ class VQGanClip:
             input_prompt="",
             target_image="",
             ramdisk=False,
-            optimize_steps=-1):
+            optimize_steps=-1,
+            style_transfer="",
+            target_weight=1,
+            step_size=0):
 
         start = time.time()
         args = self.args
         toksX, toksY = args.ancho // self.f, args.alto // self.f
         sideX, sideY = toksX * self.f, toksY * self.f
 
-        self.refresh_z()
+        # Big steps for manual inputs
+        if step_size != 0:
+            args.step_size = step_size
+        else:
+            args.step_size = 0.2 # standby step size
+
+        self.refresh_z(style_transfer=style_transfer)
+
 
         # Text Prompt
         if input_prompt:
-            print(f" {BColors.OKCYAN}[PROMPT] {input_prompt} {BColors.ENDC}")
+            if style_transfer:
+                print(f" {BColors.OKCYAN}[STYLE]  {input_prompt} {BColors.ENDC}")
+            else:
+                print(f" {BColors.OKCYAN}[PROMPT]{input_prompt} {BColors.ENDC}")
             self.args.prompts.append(input_prompt)
 
             txt, weight, stop = parse_prompt(input_prompt)
@@ -340,9 +362,9 @@ class VQGanClip:
                 clip.tokenize(txt).to(args.device)).float()
 
             # force weight
-            weight = 1 - args.init_weight
             self.pMs.append(Prompt(
                 embed, weight, stop).to(args.device))
+
 
         # Target Img
         if target_image:
@@ -350,18 +372,21 @@ class VQGanClip:
             # target keyframe
             path, weight, stop = parse_prompt(target_image)
 
-            if args.ramdisk:
+            if ramdisk:
                 path = args.ramdisk + path
+            else:
+                path = ROOT_DIR + "/" + path
 
             # force weight
-            weight = 1 - args.init_weight
+            # weight = 1 - args.init_weight
 
             try:
                 img = resize_image(
                     Image.open(path).convert('RGB'), (sideX, sideY))
             except Exception:
                 img = self.img_latest.copy()
-                print(f" {BColors.FAIL}[READ] Corrupted image input. Skipping frame. {BColors.ENDC}")
+                print(path)
+                print(f" {BColors.FAIL}[READ]   Corrupted image input. Skipping frame. {BColors.ENDC}")
                 return
 
             batch = self.make_cutouts(TF.to_tensor(
@@ -372,7 +397,7 @@ class VQGanClip:
                 embed, weight, stop).to(args.device))
 
 
-        #print(f'\n')
+
         # sync training step to seconds
         if optimize_steps == -1:
             optimize_steps = args.max_iteraciones
@@ -546,7 +571,7 @@ class MakeCutouts(nn.Module):
         self.cut_pow = cut_pow
         self.augs = nn.Sequential(
             K.RandomHorizontalFlip(p=0.0),
-            # K.RandomSolarize(0.01, 0.01, p=0.7),
+            K.RandomSolarize(0.01, 0.01, p=0.7),
             K.RandomSharpness(0.3, p=0.4),
             K.RandomAffine(degrees=30, translate=0.1,
                            p=0.8, padding_mode='border'),

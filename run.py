@@ -30,12 +30,12 @@ def main():
     my_device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     
     model_names_full = ("faceshq",
-                            "vqgan_imagenet_f16_16384",
-                            "wikiart_16384",
-                            "coco",
-                            "drin_transformer",
-                            "cin_transformer",
-                            "sflckr")
+                        "vqgan_imagenet_f16_16384",
+                        "wikiart_16384",
+                        "coco",
+                        "drin_transformer",
+                        "cin_transformer",
+                        "sflckr")
     
     tracking_img = "tdout_cam.jpg"
 
@@ -52,7 +52,7 @@ def main():
         alto=384,
         video_fps=60,
         superres_factor=3,
-        step_size=0.5,
+        step_size=0.25,
         init_image=tracking_img,  
         init_weight=0.05,
         max_iteraciones=15,  # @param {type:"number"}
@@ -61,7 +61,7 @@ def main():
         image_prompts="",
         size="(256, 256)",
         clip_model='ViT-B/32',
-        cutn=16,
+        cutn=32,
         cut_pow=1.,
         display_freq=1,
         device=my_device,

@@ -8,15 +8,20 @@ import time
 import traceback
 import _thread
 from BColors import BColors
+import glob
 
 class CmdHandle:
+    styles = ["fish eye view", "dreaming", "Kandinsy", "Cubist", "Abstract",
+             "cartoon", "watercolor", "pixel", "pixelated", "simple", "pointillism", "acrylic", 
+             "Ghost in the Shell style", "Death Stranding style", "gouache", "vignetting"]
+
     # -> Command Line Handler 
     def __init__(self, vq_ref) -> None:
         self.vq = vq_ref
         self.newest_prompt = ""
         self.mode = "standby"
         self.user_last_active = 0
-        self.active_timeout = 10
+        self.active_timeout = 3
         pass
 
     def start_looping(self):
@@ -76,15 +81,24 @@ class CmdHandle:
                 if c - self.user_last_active > self.active_timeout:
                     print(f' {BColors.HEADER}[STATUS] Gathering ideas... {BColors.ENDC}', end='\r')
                     rand_choice_prob = random.randint(1, 100)
-                    if rand_choice_prob < 5:
+                    if rand_choice_prob < 20: 
+                        # -> 20% Random Promopt
                         print(f' {BColors.HEADER}[STATUS] idea gathered from list of painting names {BColors.ENDC}')
                         _thread.start_new_thread(self.test_random_prompt, ())
-                    elif rand_choice_prob > 90:
+
+                    elif rand_choice_prob < 30: 
+                        # -> 10% Get Camera
                         print(f' {BColors.HEADER}[STATUS] idea gathered from camera input {BColors.ENDC}')
-                        _thread.start_new_thread(self.test_cam_input, ())
+                        _thread.start_new_thread(self.test_cam_styletransfer, ())
+                        
+                    elif rand_choice_prob < 40: 
+                        # -> 10% Get Local Image Prompt
+                        print(f' {BColors.HEADER}[STATUS] idea gathered from local images {BColors.ENDC}')
+                        _thread.start_new_thread(self.test_image_input, ())
                 pass
                 
-                #_thread.start_new_thread(self.standby, ())
+                #_thread.start_new_thread(self.standby, ())exit
+
             # --------------
             c += 1
             
@@ -93,7 +107,7 @@ class CmdHandle:
 
     def process_prompt(self, prompt):
         self.mode = "generating"
-        self.vq.generate("/wikiart", prompt)
+        self.vq.generate("/wikiart", prompt, step_size=0.6)
         self.mode = "standby"
 
     def test_random_prompt(self):
@@ -106,22 +120,40 @@ class CmdHandle:
         # Strips the newline character
         random_line = random.choice(lines)
         parse = random_line.strip().split('.')
-
-        self.vq.generate("/imagenet", parse[1], optimize_steps=random.randint(10,50))
+        self.vq.generate(
+            "/imagenet", 
+            input_prompt=parse[1], 
+            step_size=0.3,
+            optimize_steps=random.randint(10,25))
 
         self.mode = "standby"
 
-    def test_cam_input(self):
+    def test_image_input(self):
         self.mode = "generating"
 
-        for _ in range(random.randint(1,10)):
-            self.vq.generate(
-                    channel="/wikiart",
-                    target_image="tdout_noise.jpg",
-                    ramdisk=True,
-                    optimize_steps=random.randint(2,5))
+        # -> Randomly load image from images folder
+        self.vq.generate(
+            channel="/wikiart",
+            target_image=random.choice(glob.glob("images/*.jpg")),
+            step_size=0.4,
+            ramdisk=False,
+            optimize_steps=random.randint(5,10))
 
         self.mode = "standby"
+
+    def test_cam_styletransfer(self):
+        self.mode = "generating"
+
+        # -> Randomly load styles from predefined styles
+        self.vq.generate(
+            channel="/wikiart",
+            style_transfer="tdout_cam.jpg",
+            input_prompt=random.choice(self.styles),
+            ramdisk=True,
+            optimize_steps=random.randint(5,10))
+
+        self.mode = "standby"
+
 
     def test_prompts(self, delay=1):
         print(" [DEBUG] Using default test prompt sequence")
