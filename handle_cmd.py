@@ -13,7 +13,8 @@ import glob
 class CmdHandle:
     styles = ["fish eye view", "dreaming", "Kandinsy", "Cubist", "Abstract",
              "cartoon", "watercolor", "pixel", "pixelated", "simple", "pointillism", "acrylic", 
-             "Ghost in the Shell style", "Death Stranding style", "gouache", "vignetting"]
+             "Ghost in the Shell style", "Death Stranding style", "gouache", "vignetting",
+             "Dark and clean background", "small and center", "geometric", "linear", "Junji Ito style"]
 
     # -> Command Line Handler 
     def __init__(self, vq_ref) -> None:
@@ -21,7 +22,7 @@ class CmdHandle:
         self.newest_prompt = ""
         self.mode = "standby"
         self.user_last_active = 0
-        self.active_timeout = 3
+        self.active_timeout = 15
         pass
 
     def start_looping(self):
@@ -77,24 +78,31 @@ class CmdHandle:
                 #self.vq.refresh_cam()
 
             elif self.mode == "standby":
-                # -> Stanby Mode, trigger random generations
+                # -> Stanby Mode without user attention, trigger random generations
                 if c - self.user_last_active > self.active_timeout:
                     print(f' {BColors.HEADER}[STATUS] Gathering ideas... {BColors.ENDC}', end='\r')
                     rand_choice_prob = random.randint(1, 100)
-                    if rand_choice_prob < 20: 
-                        # -> 20% Random Promopt
+                    if rand_choice_prob < 10: 
+                        # -> 10% Random Promopt
                         print(f' {BColors.HEADER}[STATUS] idea gathered from list of painting names {BColors.ENDC}')
                         _thread.start_new_thread(self.test_random_prompt, ())
 
-                    elif rand_choice_prob < 30: 
-                        # -> 10% Get Camera
+                    elif rand_choice_prob < 15: 
+                        # -> 5% Get Camera
                         print(f' {BColors.HEADER}[STATUS] idea gathered from camera input {BColors.ENDC}')
-                        _thread.start_new_thread(self.test_cam_styletransfer, ())
-                        
-                    elif rand_choice_prob < 40: 
+                        _thread.start_new_thread(self.test_cam_styletransfer, (2,))
+
+                    elif rand_choice_prob < 25: 
                         # -> 10% Get Local Image Prompt
                         print(f' {BColors.HEADER}[STATUS] idea gathered from local images {BColors.ENDC}')
                         _thread.start_new_thread(self.test_image_input, ())
+                else:
+                    # -> Stanby Mode, with user attention
+                    rand_choice_prob = random.randint(1, 100)
+                    if rand_choice_prob < 40: 
+                        # -> 40% Get Camera
+                        print(f' {BColors.HEADER}[STATUS] idea gathered from camera input {BColors.ENDC}')
+                        _thread.start_new_thread(self.test_cam_styletransfer, (5,))
                 pass
                 
                 #_thread.start_new_thread(self.standby, ())exit
@@ -107,7 +115,7 @@ class CmdHandle:
 
     def process_prompt(self, prompt):
         self.mode = "generating"
-        self.vq.generate("/wikiart", prompt, step_size=0.6)
+        self.vq.generate("/wikiart", prompt, step_size=0.6, optimize_steps=random.randint(20,40))
         self.mode = "standby"
 
     def test_random_prompt(self):
@@ -134,23 +142,24 @@ class CmdHandle:
         # -> Randomly load image from images folder
         self.vq.generate(
             channel="/wikiart",
-            target_image=random.choice(glob.glob("images/*.jpg")),
+            target_image=random.choice(glob.glob("images/*")),
             step_size=0.4,
             ramdisk=False,
-            optimize_steps=random.randint(5,10))
+            optimize_steps=random.randint(5,20))
 
         self.mode = "standby"
 
-    def test_cam_styletransfer(self):
+    def test_cam_styletransfer(self, transfer_iterations=1):
         self.mode = "generating"
 
         # -> Randomly load styles from predefined styles
-        self.vq.generate(
-            channel="/wikiart",
-            style_transfer="tdout_cam.jpg",
-            input_prompt=random.choice(self.styles),
-            ramdisk=True,
-            optimize_steps=random.randint(5,10))
+        for _ in range(transfer_iterations):
+            self.vq.generate(
+                channel="/wikiart",
+                style_transfer="tdout_cam.jpg",
+                input_prompt=random.choice(self.styles),
+                ramdisk=True,
+                optimize_steps=random.randint(5,10))
 
         self.mode = "standby"
 

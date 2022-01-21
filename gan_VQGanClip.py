@@ -178,8 +178,8 @@ class VQGanClip:
             1, 3), self.model.quantize.embedding.weight).movedim(3, 1)
         return clamp_with_grad(self.model.decode(z_q).add(1).div(2), 0, 1)
 
-    @torch.no_grad()
-    # @torch.inference_mode()
+    #@torch.no_grad()
+    @torch.inference_mode()
     def checkin(self, i, losses):
         losses_str = ', '.join(f'{loss.item():g}' for loss in losses)
         print(f' {BColors.WARNING}[VQGAN]  step: {i}/{self.args.max_iteraciones * ((i-1)//self.args.max_iteraciones + 1)}, loss: {sum(losses).item():g}, losses: {losses_str} {BColors.ENDC}', end="\r")
@@ -251,7 +251,7 @@ class VQGanClip:
             pil_image = pil_image.resize(
                 (args.ancho, args.alto), Image.LANCZOS)
             #print(pil_image, self.img_latest)
-            self.img_latest = Image.blend(self.img_latest, pil_image, alpha=.25)
+            self.img_latest = Image.blend(self.img_latest, pil_image, alpha=random.uniform(0.1, 0.6))
 
         # Load new init image for next round
         self.z, *_ = self.model.encode(TF.to_tensor(
@@ -267,7 +267,7 @@ class VQGanClip:
         embed = self.perceptor.encode_image(self.normalize(batch)).float()
          
         self.pMs.append(Prompt(
-            embed, args.init_weight, float('-inf')).to(args.device))
+            embed, 0, float('-inf')).to(args.device))
 
 
 
@@ -354,7 +354,7 @@ class VQGanClip:
             if style_transfer:
                 print(f" {BColors.OKCYAN}[STYLE]  {input_prompt} {BColors.ENDC}")
             else:
-                print(f" {BColors.OKCYAN}[PROMPT]{input_prompt} {BColors.ENDC}")
+                print(f" {BColors.OKCYAN}[PROMPT] {input_prompt} {BColors.ENDC}")
             self.args.prompts.append(input_prompt)
 
             txt, weight, stop = parse_prompt(input_prompt)
@@ -368,6 +368,8 @@ class VQGanClip:
 
         # Target Img
         if target_image:
+            if not style_transfer:
+                print(f" {BColors.OKCYAN}[IMAGE] {target_image} {BColors.ENDC}")
 
             # target keyframe
             path, weight, stop = parse_prompt(target_image)
@@ -570,13 +572,14 @@ class MakeCutouts(nn.Module):
         self.cutn = cutn
         self.cut_pow = cut_pow
         self.augs = nn.Sequential(
-            K.RandomHorizontalFlip(p=0.0),
+            K.RandomHorizontalFlip(p=0.5),
             K.RandomSolarize(0.01, 0.01, p=0.7),
             K.RandomSharpness(0.3, p=0.4),
             K.RandomAffine(degrees=30, translate=0.1,
                            p=0.8, padding_mode='border'),
             K.RandomPerspective(0.2, p=0.4),
-            K.ColorJitter(hue=0.01, saturation=0.01, p=0.7))
+            K.ColorJitter(hue=0.01, saturation=0.01, p=0.7),
+            K.RandomErasing((.1, .4), (.3, 1/.3), same_on_batch=True, p=0.7))
         self.noise_fac = 0.1
 
     def forward(self, input):
